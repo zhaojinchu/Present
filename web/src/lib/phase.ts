@@ -28,6 +28,24 @@ export function inClassNow(o: Occurrence, nowMs: number): boolean {
   return Date.parse(o.starts_at) <= nowMs && nowMs < Date.parse(o.ends_at);
 }
 
+/**
+ * One occurrence per person, never one per class: a friend sitting in two overlapping sessions is
+ * still one friend in class. Keeps the most recently started session for each person.
+ */
+export function onePerPerson(occurrences: Occurrence[]): Occurrence[] {
+  const byUser = new Map<string, Occurrence>();
+  for (const o of occurrences) {
+    const prev = byUser.get(o.user_id);
+    if (!prev || Date.parse(o.starts_at) > Date.parse(prev.starts_at)) byUser.set(o.user_id, o);
+  }
+  return [...byUser.values()];
+}
+
+/** Friends in class right now, one entry per friend. */
+export function peopleInClass(occurrences: Occurrence[], nowMs: number): Occurrence[] {
+  return onePerPerson(occurrences.filter((o) => inClassNow(o, nowMs)));
+}
+
 const FOCUS_ORDER: Phase[] = ['open', 'late', 'closed', 'missed', 'upcoming', 'posted_late', 'posted', 'excused'];
 
 /**

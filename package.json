@@ -51,6 +51,7 @@
     "seed": "tsx scripts/seed.mts",
     "sql:test": "tsx scripts/sql-test.mts && tsx scripts/sql-test-social.mts && tsx scripts/sql-test-groups.mts && tsx scripts/sql-test-push.mts",
     "push:setup": "tsx scripts/push-setup.mts",
+    "photos:pull": "tsx scripts/photos-pull.mts",
     "verify": "tsx scripts/verify-supabase.mts",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",

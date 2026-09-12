@@ -12,7 +12,7 @@ import { PromptCard } from '@/components/today/PromptCard';
 import { useAppState, useFeed, useFriends, useToday } from '@/lib/appState';
 import { useNow } from '@/lib/clock';
 import { eventsForGroup } from '@/lib/groups';
-import { inClassNow } from '@/lib/phase';
+import { onePerPerson, peopleInClass } from '@/lib/phase';
 import { IconButton, Txt } from '@/ui';
 
 // The selected circle survives tab swipes (the tab screen remounts) but not a reload.
@@ -30,7 +30,7 @@ export default function Feed() {
   const { events, reactions, comments, loading, me } = useFeed();
   const { friends, requests } = useFriends();
   const { theirs, focus } = useToday(now);
-  const inClass = useMemo(() => theirs.filter((t) => inClassNow(t.occurrence, now)).map((t) => t.occurrence), [theirs, now]);
+  const inClass = useMemo(() => peopleInClass(theirs.map((t) => t.occurrence), now), [theirs, now]);
   const nextUp = useMemo(() => {
     const upcoming = theirs.filter((t) => t.phase === 'upcoming').map((t) => t.occurrence);
     upcoming.sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
@@ -41,7 +41,7 @@ export default function Feed() {
   const shown = useMemo(() => (group ? eventsForGroup(events, group) : events), [events, group]);
   const unexplained = useMemo(() => new Set((q.data?.my_unexplained_misses ?? []).map((m) => m.id)), [q.data]);
   const friendsPostedForFocus = useMemo(
-    () => (focus ? theirs.filter((t) => t.occurrence.course_code === focus.occurrence.course_code && t.occurrence.status === 'posted').map((t) => t.occurrence) : []),
+    () => (focus ? onePerPerson(theirs.filter((t) => t.occurrence.course_code === focus.occurrence.course_code && t.occurrence.status === 'posted').map((t) => t.occurrence)) : []),
     [theirs, focus],
   );
 

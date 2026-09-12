@@ -57,6 +57,7 @@ export const dev = {
   pinHere: (lat: number, lng: number) => rpc('dev_pin_here', { p_lat: lat, p_lng: lng }),
   replayPost: (userId: string) => rpc('dev_replay_post', { p_user: userId }),
   replayExplanation: (text: string) => rpc('dev_replay_explanation', { p_text: text }),
+  photoWalk: (course: string, location: string, minutes: number) => rpc<string>('dev_photo_walk', { p_course: course, p_location: location || null, p_minutes: minutes }),
   detectMisses: () => rpc<number>('detect_misses'),
   ensureOccurrences: () => rpc<number>('ensure_my_occurrences'),
 };

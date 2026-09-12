@@ -135,7 +135,7 @@ function postEvent(base: number, s: PostSpec): FeedEvent {
 export function buildMockState(base = Date.now()): AppState {
   const todayOcc: Occurrence[] = [
     // mine
-    occ(base, { id: 'occ-me-122', user: MOCK_ME_ID, course: '15-122', name: 'Principles of Imperative Computation', location: 'GHC 4401', startOffsetMin: -3, pinned: true }),
+    occ(base, { id: 'occ-me-122', user: MOCK_ME_ID, course: '15-122', name: 'Principles of Imperative Computation', location: 'GHC 4401', startOffsetMin: -3, pinned: true, status: 'posted', postedOffsetMin: -1 }), // TEMP-SCREENSHOT
     occ(base, { id: 'occ-me-241', user: MOCK_ME_ID, course: '21-241', name: 'Matrices and Linear Transformations', location: 'DH 2210', startOffsetMin: 125 }),
     occ(base, { id: 'occ-me-101', user: MOCK_ME_ID, course: '76-101', name: 'Interpretation and Argument', location: 'BH 255B', startOffsetMin: -185, durationMin: 80, status: 'posted', postedOffsetMin: -181 }),
     occ(base, { id: 'occ-me-200', user: MOCK_ME_ID, course: '36-200', name: 'Reasoning with Data', location: 'POS 152', startOffsetMin: -300, status: 'missed' }),

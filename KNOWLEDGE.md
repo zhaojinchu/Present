@@ -432,6 +432,36 @@ passes `repositionInputs={false}` and pins document scroll to 0 on open and clos
 the field 420 ms after opening with `preventScroll` instead of `autoFocus`. The circles icon (ring, no
 count badge, selected circle's emoji) was handed to present-bb.
 
+**Photo walk and demo photos (12 Sep 2026 ~09:00 ET).** All Saturday slots were deleted from the four real
+accounts (the 38 SAT test slots and the six hourly seed slots; the user said yes; their 3 SAT test posts went
+with them) and the seed spec has no days [6] classes any more. Real usernames: zhaojin, jin, flamingorange
+(Andrew), indigo0445 (Ryan); all four are linked (friends with the eight fakes, 10-day history, Hack House
+= the four + maya with the owed forfeit; Coffee crew = jin, zhaojin, alex, priya, ethan, daniel).
+`20260913000017_dev_photo_walk.sql`: `dev_photo_walk(p_course, p_location, p_minutes default 10) returns
+uuid` makes a one-off manual class for today and a NON-demo occurrence for the caller only (open now, on
+time for p_minutes, 5 late minutes), so dev_reset_demo never touches it and no fake gets a pending class.
+Dev panel (5 taps on the avatar in You) has a "Photo walk" section at the top: course, room, minutes,
+"Open a window for me now" goes straight to the camera. `npm run photos:pull [-- --all]`
+(scripts/photos-pull.mts) downloads the real accounts' recent post photos (front + back) into
+scripts/seed/photos as <username>-<n>.jpg / -back.jpg; the seed now uploads front/back pairs and uses
+them on history posts (fakes get a random four of everyone's fronts), with expires_at 7 days out so the
+feed shows them. Flow for the "mockup" feed: walk, present from each hall, `npm run photos:pull`,
+`npm run seed`.
+
+**Friends in class, one per person (12 Sep 2026 ~08:20).** Overlapping photo-walk windows made one friend
+count as three. `lib/phase.ts` gained `onePerPerson()` (latest-started occurrence per user) and
+`peopleInClass()`; Feed and Today use them for the live row and the "friends posted from X" lines, and
+`LiveRow` shows first names under the avatars instead of course codes (the user: show who is in class, not
+which class).
+
+**One-tap photo walk (12 Sep 2026 ~08:40).** User: "i lowkey just want to take the pictures so you can create
+mockup data later." `routes/DevWalk.tsx` at `/dev/walk` (lock-allowed via the /dev prefix, openable by URL):
+a grid of twelve campus buildings; tapping one calls `dev_photo_walk` with a plausible course + room for that
+building (three per building, rotating via localStorage `present:walk-turn`), then navigates to `/post/:id`
+with `state.returnTo = '/dev/walk'`; `routes/Post.tsx` now returns to `state.returnTo` (default `/`) after
+the success screen, so the next building is one tap away. Shows "n taken today" from my post events. The dev
+panel's Photo walk section has a "One tap per building" button into it; the form stays as Custom.
+
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =
 design session if it continues; otherwise this session. Shared: `web/src/lib/types.ts`, `KNOWLEDGE.md`.

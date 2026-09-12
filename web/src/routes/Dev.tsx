@@ -1,5 +1,6 @@
 // /dev — demo controls. Reached by five taps on your avatar. Hidden unless VITE_DEV_PANEL is on.
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { dev } from '@/lib/api/social';
 import { useAppState, useFriends, useInvalidateState, useToday } from '@/lib/appState';
@@ -16,7 +17,11 @@ export default function Dev() {
   const invalidate = useInvalidateState();
   const { friends } = useFriends();
   const { focus } = useToday(now);
+  const navigate = useNavigate();
   const [course, setCourse] = useState('15-122');
+  const [walkCourse, setWalkCourse] = useState('15-122');
+  const [walkRoom, setWalkRoom] = useState('');
+  const [walkMinutes, setWalkMinutes] = useState(10);
   const [onTime, setOnTime] = useState(2);
   const [lateMin, setLateMin] = useState(2);
   const [log, setLog] = useState<string[]>([]);
@@ -42,6 +47,34 @@ export default function Dev() {
       <Header title="Demo controls" left={<BackButton />} />
       <Main>
         <Txt variant="label" tone="tertiary" className="mt-2 mb-2">
+          Photo walk
+        </Txt>
+        <Txt variant="footnote" tone="secondary" className="mb-2">
+          Opens a window for you alone, right now, for a real room. Nothing resets, nobody else gets a class, and the photos stay for the demo.
+        </Txt>
+        <Button title="One tap per building" size="lg" className="mb-3" onClick={() => navigate('/dev/walk')} />
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Input value={walkCourse} onChange={(e) => setWalkCourse(e.target.value.slice(0, 32))} placeholder="Course code" autoCapitalize="characters" autoCorrect="off" spellCheck={false} className="flex-1" />
+            <Input value={String(walkMinutes)} onChange={(e) => setWalkMinutes(Math.max(3, Math.min(120, Number(e.target.value.replace(/\D/g, '')) || 0)))} inputMode="numeric" placeholder="min" className="!w-[76px]" aria-label="Minutes" />
+          </div>
+          <Input value={walkRoom} onChange={(e) => setWalkRoom(e.target.value.slice(0, 120))} placeholder="Room, e.g. GHC 4401" autoCorrect="off" spellCheck={false} />
+          <Button
+            title="Open a window for me now"
+            size="lg"
+            loading={busy === 'photo walk'}
+            disabled={!walkCourse.trim()}
+            onClick={() =>
+              run('photo walk', async () => {
+                const id = await dev.photoWalk(walkCourse.trim(), walkRoom.trim(), walkMinutes || 10);
+                navigate(`/post/${id}`);
+                return id;
+              })
+            }
+          />
+        </div>
+
+        <Txt variant="label" tone="tertiary" className="mt-6 mb-2">
           The moment
         </Txt>
         <div className="flex gap-2 mb-2">

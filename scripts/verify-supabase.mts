@@ -48,7 +48,7 @@ const expected = [
   'push_enqueue', 'on_friendship_push', 'on_miss_push', 'on_comment_push', 'enqueue_open_windows',
   'push_secret', 'push_public_key', 'push_secrets', 'push_kick', 'on_push_queue_insert', 'push_drain', 'push_test',
   'dev_scope', 'dev_reset_demo', 'dev_start_class_now', 'dev_end_on_time_now', 'dev_end_window_now', 'dev_pin_here',
-  'dev_replay_post', 'dev_replay_explanation',
+  'dev_replay_post', 'dev_replay_explanation', 'dev_photo_walk',
 ];
 const fns = new Set((await rows<{ proname: string }>(`select proname from pg_proc where pronamespace = 'public'::regnamespace`)).map((r) => r.proname));
 const missingFns = expected.filter((f) => !fns.has(f));

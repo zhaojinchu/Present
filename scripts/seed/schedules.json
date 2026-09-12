@@ -1,5 +1,5 @@
 {
-  "_comment": "Fakes are @present.demo accounts, wiped and rebuilt on every run. Members with existing_username are real sign-ups, linked in (friendships, circles, seed-tagged classes with history) and never deleted. Saturday slots (days [6]) are 20 min on the hour 10:00-15:00, so a window is open :58 to :30 each hour and nothing is open at 16:00.",
+  "_comment": "Fakes are @present.demo accounts, wiped and rebuilt on every run. Members with existing_username are real sign-ups, linked in (friendships, circles, seed-tagged classes with history) and never deleted. No Saturday slots: the photo walk uses the dev panel (dev_photo_walk) so nothing locks a phone on a timetable.",
   "password": "present-demo-2026",
   "demo_course": "15-122",
   "history_class_days": 10,
@@ -408,68 +408,6 @@
           ],
           "start": "14:00",
           "end": "15:20"
-        },
-        {
-          "course_code": "15-112",
-          "name": "Fundamentals of Programming",
-          "location_text": "GHC 4401",
-          "lat": 40.4436,
-          "lng": -79.9446,
-          "days": [
-            6
-          ],
-          "start": "10:00",
-          "end": "10:20"
-        },
-        {
-          "course_code": "21-259",
-          "name": "Calculus in Three Dimensions",
-          "location_text": "DH 2210",
-          "days": [
-            6
-          ],
-          "start": "11:00",
-          "end": "11:20"
-        },
-        {
-          "course_code": "15-150",
-          "name": "Functional Programming",
-          "location_text": "WEH 7500",
-          "days": [
-            6
-          ],
-          "start": "12:00",
-          "end": "12:20"
-        },
-        {
-          "course_code": "80-100",
-          "name": "Introduction to Philosophy",
-          "location_text": "BH 255B",
-          "days": [
-            6
-          ],
-          "start": "13:00",
-          "end": "13:20"
-        },
-        {
-          "course_code": "18-220",
-          "name": "Electronic Devices and Analog Circuits",
-          "location_text": "HH 1107",
-          "days": [
-            6
-          ],
-          "start": "14:00",
-          "end": "14:20"
-        },
-        {
-          "course_code": "21-268",
-          "name": "Multidimensional Calculus",
-          "location_text": "WEH 5403",
-          "days": [
-            6
-          ],
-          "start": "15:00",
-          "end": "15:20"
         }
       ]
     },
@@ -516,75 +454,13 @@
           ],
           "start": "11:00",
           "end": "12:20"
-        },
-        {
-          "course_code": "15-112",
-          "name": "Fundamentals of Programming",
-          "location_text": "GHC 4401",
-          "lat": 40.4436,
-          "lng": -79.9446,
-          "days": [
-            6
-          ],
-          "start": "10:00",
-          "end": "10:20"
-        },
-        {
-          "course_code": "21-259",
-          "name": "Calculus in Three Dimensions",
-          "location_text": "DH 2210",
-          "days": [
-            6
-          ],
-          "start": "11:00",
-          "end": "11:20"
-        },
-        {
-          "course_code": "15-150",
-          "name": "Functional Programming",
-          "location_text": "WEH 7500",
-          "days": [
-            6
-          ],
-          "start": "12:00",
-          "end": "12:20"
-        },
-        {
-          "course_code": "80-100",
-          "name": "Introduction to Philosophy",
-          "location_text": "BH 255B",
-          "days": [
-            6
-          ],
-          "start": "13:00",
-          "end": "13:20"
-        },
-        {
-          "course_code": "18-220",
-          "name": "Electronic Devices and Analog Circuits",
-          "location_text": "HH 1107",
-          "days": [
-            6
-          ],
-          "start": "14:00",
-          "end": "14:20"
-        },
-        {
-          "course_code": "21-268",
-          "name": "Multidimensional Calculus",
-          "location_text": "WEH 5403",
-          "days": [
-            6
-          ],
-          "start": "15:00",
-          "end": "15:20"
         }
       ]
     },
     {
       "first": "andrew",
-      "existing_username": "andrew",
-      "username": "andrew",
+      "existing_username": "flamingorange",
+      "username": "flamingorange",
       "display_name": "Andrew Zhou",
       "tz": "America/New_York",
       "classes": [
@@ -623,75 +499,13 @@
           ],
           "start": "15:00",
           "end": "16:20"
-        },
-        {
-          "course_code": "15-112",
-          "name": "Fundamentals of Programming",
-          "location_text": "GHC 4401",
-          "lat": 40.4436,
-          "lng": -79.9446,
-          "days": [
-            6
-          ],
-          "start": "10:00",
-          "end": "10:20"
-        },
-        {
-          "course_code": "21-259",
-          "name": "Calculus in Three Dimensions",
-          "location_text": "DH 2210",
-          "days": [
-            6
-          ],
-          "start": "11:00",
-          "end": "11:20"
-        },
-        {
-          "course_code": "15-150",
-          "name": "Functional Programming",
-          "location_text": "WEH 7500",
-          "days": [
-            6
-          ],
-          "start": "12:00",
-          "end": "12:20"
-        },
-        {
-          "course_code": "80-100",
-          "name": "Introduction to Philosophy",
-          "location_text": "BH 255B",
-          "days": [
-            6
-          ],
-          "start": "13:00",
-          "end": "13:20"
-        },
-        {
-          "course_code": "18-220",
-          "name": "Electronic Devices and Analog Circuits",
-          "location_text": "HH 1107",
-          "days": [
-            6
-          ],
-          "start": "14:00",
-          "end": "14:20"
-        },
-        {
-          "course_code": "21-268",
-          "name": "Multidimensional Calculus",
-          "location_text": "WEH 5403",
-          "days": [
-            6
-          ],
-          "start": "15:00",
-          "end": "15:20"
         }
       ]
     },
     {
       "first": "ryan",
-      "existing_username": "ryan",
-      "username": "ryan",
+      "existing_username": "indigo0445",
+      "username": "indigo0445",
       "display_name": "Ryan Wu",
       "tz": "America/New_York",
       "classes": [
@@ -731,68 +545,6 @@
           ],
           "start": "12:00",
           "end": "12:50"
-        },
-        {
-          "course_code": "15-112",
-          "name": "Fundamentals of Programming",
-          "location_text": "GHC 4401",
-          "lat": 40.4436,
-          "lng": -79.9446,
-          "days": [
-            6
-          ],
-          "start": "10:00",
-          "end": "10:20"
-        },
-        {
-          "course_code": "21-259",
-          "name": "Calculus in Three Dimensions",
-          "location_text": "DH 2210",
-          "days": [
-            6
-          ],
-          "start": "11:00",
-          "end": "11:20"
-        },
-        {
-          "course_code": "15-150",
-          "name": "Functional Programming",
-          "location_text": "WEH 7500",
-          "days": [
-            6
-          ],
-          "start": "12:00",
-          "end": "12:20"
-        },
-        {
-          "course_code": "80-100",
-          "name": "Introduction to Philosophy",
-          "location_text": "BH 255B",
-          "days": [
-            6
-          ],
-          "start": "13:00",
-          "end": "13:20"
-        },
-        {
-          "course_code": "18-220",
-          "name": "Electronic Devices and Analog Circuits",
-          "location_text": "HH 1107",
-          "days": [
-            6
-          ],
-          "start": "14:00",
-          "end": "14:20"
-        },
-        {
-          "course_code": "21-268",
-          "name": "Multidimensional Calculus",
-          "location_text": "WEH 5403",
-          "days": [
-            6
-          ],
-          "start": "15:00",
-          "end": "15:20"
         }
       ]
     }

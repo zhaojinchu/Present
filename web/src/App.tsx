@@ -9,6 +9,7 @@ import CircleNew from './routes/CircleNew';
 import Circles from './routes/Circles';
 import Comments from './routes/Comments';
 import Dev from './routes/Dev';
+import DevWalk from './routes/DevWalk';
 import Explain from './routes/Explain';
 import Feed from './routes/Feed';
 import Friends from './routes/Friends';
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
       { path: 'schedule/import', element: <ScheduleImport /> },
       { path: 'settings', element: <Settings /> },
       { path: 'dev', element: <Dev /> },
+      { path: 'dev/walk', element: <DevWalk /> },
       { path: 'sign-in', element: <SignIn /> },
       { path: 'sign-up', element: <SignUp /> },
       { path: '*', element: <NotFound /> },

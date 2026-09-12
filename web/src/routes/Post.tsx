@@ -1,7 +1,7 @@
 // /post/:occurrenceId — the full-screen capture flow. No app chrome.
 import { useEffect, useMemo, useRef } from 'react';
 import { IoLockClosedOutline } from 'react-icons/io5';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { CameraStage } from '@/components/post/CameraStage';
 import { CapturePreview } from '@/components/post/CapturePreview';
 import { PostSuccess } from '@/components/post/PostSuccess';
@@ -25,13 +25,16 @@ export default function Post() {
   const post = usePost(target, userId);
   const friendsThere = useMemo(() => (target ? theirs.filter((t) => t.occurrence.course_code === target.course_code && t.occurrence.status === 'posted').map((t) => t.occurrence) : []), [theirs, target]);
 
+  const location = useLocation();
+  // The photo walk sends { returnTo } so the next building is one tap away.
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? '/';
   const close = () => (window.history.length > 1 ? navigate(-1) : navigate('/today'));
 
   // After success: refresh the state so the feed shows the post, then return to the feed. Only the
   // stage may re-arm this timer; the clock re-renders every second and must not reset it.
-  const latest = useRef({ invalidate, navigate });
-  latest.current = { invalidate, navigate };
-  const goHome = () => latest.current.navigate('/', { replace: true });
+  const latest = useRef({ invalidate, navigate, returnTo });
+  latest.current = { invalidate, navigate, returnTo };
+  const goHome = () => latest.current.navigate(latest.current.returnTo, { replace: true });
   useEffect(() => {
     if (post.stage !== 'success') return;
     void latest.current.invalidate();

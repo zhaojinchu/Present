@@ -171,25 +171,39 @@ for (const m of [...spec.members]) {
 }
 console.log(`created ${spec.members.length} users`);
 
-// 3. Photos: upload scripts/seed/photos/*.jpg as seed/<user_id>/<n>.jpg.
+// 3. Photos: scripts/seed/photos/<first>-<n>.jpg (+ optional <first>-<n>-back.jpg for the inset) are
+// uploaded as seed/<user_id>/<n>.jpg and <n>-back.jpg; a member without named files gets a random
+// four of everyone's fronts (npm run photos:pull fills this folder from the real accounts' posts).
 const photoDir = path.join(here, 'seed', 'photos');
 const allPhotos = fs.existsSync(photoDir) ? fs.readdirSync(photoDir).filter((f) => /\.(jpe?g|png)$/i.test(f)) : [];
-const photoPaths: Record<string, string[]> = {};
+const fronts = allPhotos.filter((f) => !/-back\.(jpe?g|png)$/i.test(f));
+const backOf = (f: string): string | null => {
+  const m = f.match(/^(.*)\.(jpe?g|png)$/i);
+  if (!m) return null;
+  return allPhotos.find((x) => x.toLowerCase() === `${m[1]}-back.${m[2]}`.toLowerCase()) ?? null;
+};
+const photoPaths: Record<string, { front: string; back: string | null }[]> = {};
+async function uploadPhoto(f: string, dest: string) {
+  const { error } = await admin.storage
+    .from(BUCKET)
+    .upload(dest, fs.readFileSync(path.join(photoDir, f)), { contentType: /png$/i.test(f) ? 'image/png' : 'image/jpeg', upsert: true });
+  if (error) throw new Error(`upload ${dest}: ${error.message}`);
+}
 for (const m of spec.members) {
-  const mine = allPhotos.filter((f) => f.toLowerCase().startsWith(`${m.first}-`));
-  const files = mine.length ? mine : shuffle(allPhotos).slice(0, 4);
+  const mine = fronts.filter((f) => f.toLowerCase().startsWith(`${m.first}-`));
+  const files = mine.length ? mine : shuffle(fronts).slice(0, 4);
   photoPaths[m.first] = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     const dest = `seed/${userId[m.first]}/${i + 1}.jpg`;
-    const { error } = await admin.storage
-      .from(BUCKET)
-      .upload(dest, fs.readFileSync(path.join(photoDir, f)), { contentType: /png$/i.test(f) ? 'image/png' : 'image/jpeg', upsert: true });
-    if (error) throw new Error(`upload ${dest}: ${error.message}`);
-    photoPaths[m.first].push(dest);
+    await uploadPhoto(f, dest);
+    const b = backOf(f);
+    const destBack = b ? `seed/${userId[m.first]}/${i + 1}-back.jpg` : null;
+    if (b && destBack) await uploadPhoto(b, destBack);
+    photoPaths[m.first].push({ front: dest, back: destBack });
   }
 }
-if (!allPhotos.length) console.warn('! no photos in scripts/seed/photos; posts will have no images');
+if (!fronts.length) console.warn('! no photos in scripts/seed/photos; posts will have no images (npm run photos:pull after the photo walk)');
 else console.log(`uploaded ${Object.values(photoPaths).flat().length} photos`);
 
 // 4. Friendships: everyone is friends with everyone, since three weeks ago.
@@ -327,9 +341,9 @@ async function seedPost(m: MemberSpec, c: ClassSpec, ymd: string, opts: { late?:
   const post = (
     await sql<{ id: string }>(
       `insert into public.posts (occurrence_id, user_id, photo_path, photo_back_path, caption, late, location_verified, retake_count, expires_at, memory_until, created_at)
-       values ($1, $2, $3, null, $4, $5, $6, $7, now() + interval '7 days', now() + interval '30 days', ${postedAt})
+       values ($1, $2, $3, $8, $4, $5, $6, $7, now() + interval '7 days', now() + interval '30 days', ${postedAt})
        returning id`,
-      [occ, userId[m.first], photo, opts.caption ?? null, !!opts.late, verified, opts.retakes ?? 0],
+      [occ, userId[m.first], photo?.front ?? null, opts.caption ?? null, !!opts.late, verified, opts.retakes ?? 0, photo?.back ?? null],
     )
   )[0];
   const ev = (
@@ -345,8 +359,8 @@ async function seedPost(m: MemberSpec, c: ClassSpec, ymd: string, opts: { late?:
           ...profileJson(m),
           course_code: c.course_code,
           location_text: c.location_text ?? null,
-          photo_path: photo,
-          photo_back_path: null,
+          photo_path: photo?.front ?? null,
+          photo_back_path: photo?.back ?? null,
           caption: opts.caption ?? null,
           late: !!opts.late,
           location_verified: verified,
