@@ -1,11 +1,12 @@
-// The circle button in the Present top bar: a badge with how many circles I have, filled when one
-// is selected. Opens a sheet listing Everyone plus each circle to filter the feed, and a way into
-// the circles screen. Replaces a whole chip row, which cost too much height on a phone.
+// The circle button in the Present top bar: a hand-drawn glyph of three people inside a ring (not an
+// icon-library glyph, so it never reads as the two-people friends icon, and no count badge, so it
+// never reads as a notification). With a circle selected the ring holds that circle's emoji. Opens a
+// sheet listing Everyone plus each circle to filter the feed, and a way into the circles screen.
 import { useState } from 'react';
-import { IoCheckmark, IoPeopleCircle, IoPeopleCircleOutline, IoPeopleOutline, IoSettingsOutline } from 'react-icons/io5';
+import { IoCheckmark, IoPeopleCircleOutline, IoPeopleOutline, IoSettingsOutline } from 'react-icons/io5';
 import { useNavigate } from 'react-router';
 import { type Group } from '@/lib/groups';
-import { Button, Group as GroupList, Icon, IconButton, ListRow, Sheet, StreakChip, Txt } from '@/ui';
+import { Button, cx, Group as GroupList, Icon, ListRow, Sheet, StreakChip, Txt } from '@/ui';
 
 export function CirclePicker({ circles, value, onChange }: { circles: Group[]; value: string | null; onChange: (id: string | null) => void }) {
   const [open, setOpen] = useState(false);
@@ -19,14 +20,15 @@ export function CirclePicker({ circles, value, onChange }: { circles: Group[]; v
 
   return (
     <>
-      <span className="relative">
-        <IconButton icon={active ? IoPeopleCircle : IoPeopleCircleOutline} label={active ? `Showing ${active.name}` : 'Circles'} tone="plain" onClick={() => setOpen(true)} />
-        {circles.length > 0 ? (
-          <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-text text-text-inverse text-[10px] leading-4 font-semibold text-center tabular-nums pointer-events-none" aria-hidden>
-            {circles.length}
+      <button type="button" aria-label={active ? `Showing ${active.name}` : 'Circles'} onClick={() => setOpen(true)} className="pressable inline-flex items-center justify-center rounded-full shrink-0 w-11 h-11 text-text">
+        {active ? (
+          <span className={cx('flex items-center justify-center rounded-full border-[1.75px] border-current w-[23px] h-[23px] text-[12px] leading-none bg-surface-raised')} aria-hidden>
+            {active.emoji ?? active.name.slice(0, 1).toUpperCase()}
           </span>
-        ) : null}
-      </span>
+        ) : (
+          <PeopleInRing size={22} />
+        )}
+      </button>
 
       <Sheet open={open} onOpenChange={setOpen} title="Show presents from">
         <GroupList>
@@ -73,5 +75,23 @@ export function CirclePicker({ circles, value, onChange }: { circles: Group[]; v
         />
       </Sheet>
     </>
+  );
+}
+
+/** Three people inside a ring. Drawn here so it is unmistakably not the friends icon. */
+function PeopleInRing({ size }: { size: number }) {
+  const person = (x: number, y: number) => (
+    <g key={`${x}-${y}`}>
+      <circle cx={x} cy={y} r={1.6} fill="currentColor" />
+      <path d={`M ${x - 2.4} ${y + 4.9} a 2.4 2.4 0 0 1 4.8 0 Z`} fill="currentColor" />
+    </g>
+  );
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false">
+      <circle cx="12" cy="12" r="10.25" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      {person(12, 7.4)}
+      {person(7.9, 13.2)}
+      {person(16.1, 13.2)}
+    </svg>
   );
 }

@@ -1,5 +1,5 @@
 // iOS-style bottom sheet on Vaul: drag handle, spring, scrim. Used for comments, explain, class edit.
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Drawer } from 'vaul';
 import { cx } from './cx';
 import { Txt } from './text';
@@ -17,8 +17,23 @@ export function Sheet({
   children: ReactNode;
   className?: string;
 }) {
+  // iOS scrolls the (hidden-overflow) document when a field inside the sheet takes focus; on the
+  // next open that offset is still there and the sheet appears far down. Pin the document.
+  useEffect(() => {
+    if (!open) return;
+    const pin = () => {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    pin();
+    const t = window.setTimeout(pin, 450);
+    return () => {
+      window.clearTimeout(t);
+      pin();
+    };
+  }, [open]);
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
+    <Drawer.Root open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-scrim z-40" />
         <Drawer.Content

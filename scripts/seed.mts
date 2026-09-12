@@ -1,7 +1,10 @@
 /* eslint-disable no-console */
-// Present v2 — demo seed. Wipes and rebuilds the team's accounts, friendships, schedules and two
-// weeks of believable history: on-time posts, one late post, one unexcused miss with an
-// explanation and a reply, one excused miss, reactions and comments. Idempotent.
+// Present v2 — demo seed. Wipes and rebuilds the fake accounts (@present.demo), friendships,
+// schedules and two weeks of believable history: on-time posts, one late post, one unexcused miss
+// with an explanation and a reply, one excused miss, reactions, comments, circles with a forfeit
+// and votes. Members with `existing_username` are real sign-ups that get LINKED into this world
+// (friendships, circles, a seed-tagged class with history) and are never deleted; their own
+// classes and posts stay. Idempotent: re-running replaces only what the seed made.
 //
 //   npm run seed
 //
@@ -36,6 +39,19 @@ interface MemberSpec {
   display_name: string;
   tz: string;
   classes: ClassSpec[];
+  /** A real account to link instead of creating one; matched by profile username. */
+  existing_username?: string;
+}
+interface CircleSpec {
+  name: string;
+  emoji?: string | null;
+  forfeit_text?: string | null;
+  created_by: string; // member first
+  members: string[]; // member firsts
+  /** The miss member's miss owes this circle's forfeit (only if they are a member and it has stakes). */
+  forfeit_for?: string;
+  /** Votes on that miss: first -> fair? */
+  votes?: Record<string, boolean>;
 }
 interface SeedSpec {
   password: string;
@@ -45,6 +61,7 @@ interface SeedSpec {
   miss_member: string;
   excused_member: string;
   members: MemberSpec[];
+  circles?: CircleSpec[];
 }
 
 const env = (k: string) => {
@@ -122,9 +139,27 @@ console.log(`Seeding against ${SUPABASE_URL} (today in ${tz0}: ${today})`);
   console.log(`wiped ${deleted} seed users`);
 }
 
-// 2. Users (the auth trigger creates profiles with username + tz from the metadata).
+// 2. Users (the auth trigger creates profiles with username + tz from the metadata). Linked real
+// accounts are looked up by username; the seed's previous classes on them (ics_uid seed:*) go, with
+// their occurrences, posts and feed events, so the history is rebuilt cleanly.
 const userId: Record<string, string> = {};
-for (const m of spec.members) {
+const linked = new Set<string>();
+for (const m of [...spec.members]) {
+  if (m.existing_username) {
+    const found = await sql<{ id: string; display_name: string; username: string; tz: string }>(`select id, display_name, username, tz from public.profiles where username = $1`, [m.existing_username]);
+    if (!found.length) {
+      console.warn(`! @${m.existing_username} (${m.display_name}) has not signed up yet; skipped (re-run the seed after they do)`);
+      spec.members = spec.members.filter((x) => x !== m);
+      continue;
+    }
+    userId[m.first] = found[0].id;
+    m.username = found[0].username;
+    m.display_name = found[0].display_name;
+    m.tz = found[0].tz;
+    linked.add(m.first);
+    await sql(`delete from public.classes where user_id = $1 and ics_uid like 'seed:%'`, [found[0].id]);
+    continue;
+  }
   const { data, error } = await admin.auth.admin.createUser({
     email: `${m.first}@present.demo`,
     password: spec.password,
@@ -167,7 +202,8 @@ else console.log(`uploaded ${Object.values(photoPaths).flat().length} photos`);
       const [lo, hi] = a < b ? [a, b] : [b, a];
       await sql(
         `insert into public.friendships (user_lo, user_hi, requested_by, status, created_at, accepted_at)
-         values ($1, $2, $3, 'accepted', now() - interval '22 days', now() - interval '21 days')`,
+         values ($1, $2, $3, 'accepted', now() - interval '22 days', now() - interval '21 days')
+         on conflict (user_lo, user_hi) do update set status = 'accepted', accepted_at = coalesce(public.friendships.accepted_at, now())`,
         [lo, hi, a],
       );
       edges += 1;
@@ -177,6 +213,7 @@ else console.log(`uploaded ${Object.values(photoPaths).flat().length} photos`);
   for (let j = 1; j < spec.members.length; j++) {
     const me = spec.members[0];
     const them = spec.members[j];
+    if (linked.has(me.first) || linked.has(them.first)) continue;
     await sql(
       `insert into public.feed_events (actor_id, type, ref_id, payload, created_at)
        values ($1, 'friends', $2, $3, now() - interval '21 days' + ($4 || ' minutes')::interval)`,
@@ -196,17 +233,48 @@ const classId: Record<string, Record<string, string>> = {};
 for (const m of spec.members) {
   classId[m.first] = {};
   for (const c of m.classes) {
+    if (linked.has(m.first)) {
+      const own = await sql<{ id: string }>(`select id from public.classes where user_id = $1 and course_code = $2 and (term_end is null or term_end >= current_date) limit 1`, [userId[m.first], c.course_code]);
+      if (own.length) {
+        classId[m.first][c.course_code] = own[0].id;
+        continue;
+      }
+    }
     const row = (
       await sql<{ id: string }>(
-        `insert into public.classes (user_id, course_code, name, location_text, lat, lng, radius_m, tz, days_of_week, start_time, end_time, source)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ics') returning id`,
-        [userId[m.first], c.course_code, c.name ?? null, c.location_text ?? null, c.lat ?? null, c.lng ?? null, c.lat != null ? 60 : null, m.tz, c.days, c.start, c.end],
+        `insert into public.classes (user_id, course_code, name, location_text, lat, lng, radius_m, tz, days_of_week, start_time, end_time, source, ics_uid)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ics', $12) returning id`,
+        [userId[m.first], c.course_code, c.name ?? null, c.location_text ?? null, c.lat ?? null, c.lng ?? null, c.lat != null ? 60 : null, m.tz, c.days, c.start, c.end, linked.has(m.first) ? `seed:${c.course_code}` : null],
       )
     )[0];
     classId[m.first][c.course_code] = row.id;
   }
 }
 console.log('classes inserted');
+
+// 5b. Circles (groups in the database): replaced on every run.
+const circleId: Record<string, string> = {};
+for (const g of spec.circles ?? []) {
+  const creator = userId[g.created_by];
+  const members = g.members.filter((f) => userId[f]);
+  if (!creator || members.length === 0) {
+    console.warn(`! circle "${g.name}": creator @${g.created_by} not available, skipped`);
+    continue;
+  }
+  await sql(`delete from public.groups where name = $1 and created_by = any($2::uuid[])`, [g.name, Object.values(userId)]);
+  const row = (
+    await sql<{ id: string }>(
+      `insert into public.groups (name, emoji, invite_code, forfeit_text, created_by, created_at)
+       values ($1, $2, public.gen_invite_code(), $3, $4, now() - interval '20 days') returning id`,
+      [g.name, g.emoji ?? null, g.forfeit_text ?? null, creator],
+    )
+  )[0];
+  circleId[g.name] = row.id;
+  for (const [i, f] of [g.created_by, ...members.filter((x) => x !== g.created_by)].entries()) {
+    await sql(`insert into public.group_members (group_id, user_id, joined_at) values ($1, $2, now() - interval '20 days' + ($3 || ' hours')::interval) on conflict do nothing`, [row.id, userId[f], i]);
+  }
+  console.log(`circle "${g.name}": ${members.length} members${g.forfeit_text ? `, stakes "${g.forfeit_text}"` : ''}`);
+}
 
 // 6. History. Triggers off (create_post would reject closed windows), explicit timestamps.
 await sql(`set session_replication_role = replica`);
@@ -241,16 +309,18 @@ async function insertOccurrence(m: MemberSpec, c: ClassSpec, ymd: string, status
        values ($1, $2, $3::date, ${at(ymd, c.start, m.tz)}, ${at(ymd, c.end, m.tz)},
                ${at(ymd, c.start, m.tz)} - interval '2 min', ${at(ymd, c.start, m.tz)} + interval '10 min',
                ${at(ymd, c.end, m.tz)} + interval '10 min', $4, $5, ${postedAt ?? 'null'})
+       on conflict (class_id, date) where not is_demo do nothing
        returning id`,
       [classId[m.first][c.course_code], userId[m.first], ymd, status, late],
     )
-  )[0].id;
+  )[0]?.id ?? null;
 }
 
 async function seedPost(m: MemberSpec, c: ClassSpec, ymd: string, opts: { late?: boolean; minutes?: number; retakes?: number; caption?: string | null; streakAfter: number }) {
   const minutes = opts.minutes ?? rand(9); // posted 0-8 minutes after the start
   const postedAt = `${at(ymd, c.start, m.tz)} + interval '${minutes} minutes'`;
   const occ = await insertOccurrence(m, c, ymd, 'posted', !!opts.late, postedAt);
+  if (!occ) return; // the real account already had that day
   const photos = photoPaths[m.first];
   const photo = photos.length ? photos[photoIdx++ % photos.length] : null;
   const verified = c.lat != null;
@@ -307,6 +377,7 @@ for (const ymd of classDays) {
     for (const [i, c] of todays.entries()) {
       if (isMissDay && i === 0) {
         const occ = await insertOccurrence(m, c, ymd, 'missed');
+        if (!occ) continue;
         const miss = (
           await sql<{ id: string }>(
             `insert into public.misses (occurrence_id, user_id, excused, explanation, created_at)
@@ -338,6 +409,7 @@ for (const ymd of classDays) {
       }
       if (isExcusedDay && i === 0) {
         const occ = await insertOccurrence(m, c, ymd, 'excused');
+        if (!occ) continue;
         const miss = (
           await sql<{ id: string }>(
             `insert into public.misses (occurrence_id, user_id, excused, created_at) values ($1, $2, true, ${at(ymd, c.start, m.tz)} - interval '40 min') returning id`,
@@ -394,6 +466,27 @@ for (const ymd of classDays) {
   }
 }
 
+// Circles: the miss member's miss owes the forfeit where there are stakes; a couple of votes.
+for (const g of spec.circles ?? []) {
+  const gid = circleId[g.name];
+  if (!gid || !g.forfeit_for || !g.forfeit_text) continue;
+  const missRow = await sql<{ id: string }>(
+    `select m.id from public.misses m join public.group_members gm on gm.user_id = m.user_id and gm.group_id = $1
+      where m.user_id = $2 and not m.excused order by m.created_at desc limit 1`,
+    [gid, userId[g.forfeit_for]],
+  );
+  if (!missRow.length) continue;
+  await sql(
+    `insert into public.group_forfeits (group_id, miss_id, user_id, status, created_at)
+     values ($1, $2, $3, 'owed', (select created_at from public.misses where id = $2)) on conflict do nothing`,
+    [gid, missRow[0].id, userId[g.forfeit_for]],
+  );
+  for (const [f, fair] of Object.entries(g.votes ?? {})) {
+    if (!userId[f] || f === g.forfeit_for) continue;
+    await sql(`insert into public.miss_votes (miss_id, group_id, user_id, fair) values ($1, $2, $3, $4) on conflict do nothing`, [missRow[0].id, gid, userId[f], fair]);
+  }
+}
+
 await sql(`set session_replication_role = origin`);
 await sql(`select public.ensure_occurrences(current_date - 1, 3)`);
 console.log(`history: ${classDays.length} class-days, ${postCount} posts, ${misser.display_name} missed once (explained), ${excused.display_name} excused once, ${later.display_name} posted late once`);
@@ -425,6 +518,6 @@ const board = await sql<{ display_name: string; username: string; streak: number
 );
 for (const [i, b] of board.entries()) console.log(`  #${i + 1} ${b.display_name.padEnd(16)} @${b.username.padEnd(8)} streak ${b.streak}  best ${b.best}`);
 console.log('\nlogins');
-for (const m of spec.members) console.log(`  ${m.display_name.padEnd(16)} ${m.first}@present.demo / ${spec.password}`);
+for (const m of spec.members) console.log(linked.has(m.first) ? `  ${m.display_name.padEnd(16)} linked real account @${m.username}` : `  ${m.display_name.padEnd(16)} ${m.first}@present.demo / ${spec.password}`);
 console.log(`\ndemo course: ${spec.demo_course}\n`);
 await db.end();

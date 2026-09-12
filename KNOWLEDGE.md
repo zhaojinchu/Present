@@ -400,6 +400,37 @@ update_group clears nulls), Invite friends, members with tap-again "Remove" per 
 member: Invite friends, members, "Leave circle"). `components/circles/CircleFields.tsx` holds the emoji and
 stakes pickers shared by New and Edit. API: `removeFromGroup`, `deleteGroup` (peer's migration 000016).
 Verified on the mock by temporarily marking the fixture's 15-122 as posted (reverted) to get past the lock.
+Header icons (user: "make the groups icon and the friends icons more different… it has a number which makes it
+look like a notification"), then "make it some people in a circle… a little smaller": the circles button is
+a hand-drawn inline SVG in `CirclePicker.tsx` (`PeopleInRing`: 1.75 ring + three filled people) at 22px next
+to the 24px IoPeopleOutline, same 44px hit box, no count badge; with a circle selected a 23px ring holds that
+circle's emoji (or the name's initial) on surface-raised. Friends keeps its red dot only for pending requests.
+
+**Seed v3: linked real accounts, circles, Saturday slots (12 Sep 2026 ~07:30 ET, real clock).**
+`scripts/seed.mts` now takes members with `existing_username`: a real sign-up is linked instead of created
+(never deleted): friendships with every seed account (`on conflict` safe), the spec's classes as
+`ics_uid = seed:<course>` rows (an existing class with the same course is reused) with 10 weekdays of
+on-time history (occurrence insert is `on conflict do nothing`, so the account's own days win), and
+circle membership. A `circles` section makes groups (replaced by name+creator on each run), members,
+an owed forfeit on the miss member's miss where there are stakes, and votes. Fakes: maya (miss),
+ethan (late), chloe (excused), daniel, alex, sam, priya, jordan. Real: zhaojin, jin (linked), andrew, ryan
+(skipped until they sign up; re-run the seed then). Saturday slots for the real team only: 15-112 10:00,
+21-259 11:00, 15-150 12:00, 80-100 13:00, 18-220 14:00, 21-268 15:00, each 20 min, so nothing is open at
+16:00 judging. `scripts/seed/schedules.json` is the live spec. `@types/web-push` added so
+`typecheck:scripts` is clean. Hazard still open: the 38-slot SAT calendar on zhaojin and jin locks their
+phones every half hour; delete those classes (cascade removes their 3 real SAT posts) once the user says so.
+
+**Interactive swipes, sheet scroll bug (12 Sep 2026 ~08:15 ET).** `StackTransition.tsx` rewritten around a
+per-screen `MotionValue x` (`motionValue()` in a map keyed by screen, pruned on exit complete) bound via
+`style={{ x }}`: the tab swipe and the left-edge pop now follow the finger (resistance 0.22 when there is
+no neighbour tab), commit past 30 % of the width or a flick over 0.35 px/ms measured on the last two
+samples, else spring back; variants use px targets (`custom = { tab, push, w }`) so a dragged screen
+continues from where it was released. Direction lock at 8 px, ignore rules and the tap crossfade are as
+before. Sheet bug: iOS scrolled the overflow-hidden document when the "Can't make it" textarea autofocused
+inside the vaul drawer, and the offset survived to the next open (the sheet appeared far down). `Sheet` now
+passes `repositionInputs={false}` and pins document scroll to 0 on open and close; `ExcuseSheet` focuses
+the field 420 ms after opening with `preventScroll` instead of `autoFocus`. The circles icon (ring, no
+count badge, selected circle's emoji) was handed to present-bb.
 
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =
