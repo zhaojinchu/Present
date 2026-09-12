@@ -44,7 +44,7 @@ const expected = [
   'get_stats', 'stats_for',
   'my_group_ids', 'group_mates', 'is_group_member', 'gen_invite_code', 'miss_group_excused', 'void_forfeit', 'on_miss_group_effects',
   'group_days', 'group_streak', 'group_best_streak', 'group_json', 'group_state', 'check_miss_in_group',
-  'create_group', 'join_group', 'add_to_group', 'leave_group', 'update_group', 'mark_forfeit_paid', 'vote_miss', 'vouch_miss',
+  'create_group', 'join_group', 'add_to_group', 'leave_group', 'update_group', 'mark_forfeit_paid', 'vote_miss', 'vouch_miss', 'remove_from_group', 'delete_group',
   'push_enqueue', 'on_friendship_push', 'on_miss_push', 'on_comment_push', 'enqueue_open_windows',
   'push_secret', 'push_public_key', 'push_secrets', 'push_kick', 'on_push_queue_insert', 'push_drain', 'push_test',
   'dev_scope', 'dev_reset_demo', 'dev_start_class_now', 'dev_end_on_time_now', 'dev_end_window_now', 'dev_pin_here',

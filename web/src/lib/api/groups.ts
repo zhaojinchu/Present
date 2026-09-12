@@ -20,6 +20,10 @@ export const createGroup = (name: string, emoji: string | null, forfeitText: str
 export const joinGroup = (code: string) => rpc<Group>('join_group', { p_code: code.trim().toUpperCase() });
 export const addToGroup = (groupId: string, userId: string) => rpc('add_to_group', { p_group_id: groupId, p_user_id: userId });
 export const leaveGroup = (groupId: string) => rpc('leave_group', { p_group_id: groupId });
+/** Creator only, never yourself (use leaveGroup). */
+export const removeFromGroup = (groupId: string, userId: string) => rpc<Group>('remove_from_group', { p_group_id: groupId, p_user_id: userId });
+/** Creator only; cascades forfeits, votes and vouches. */
+export const deleteGroup = (groupId: string) => rpc('delete_group', { p_group_id: groupId });
 export const updateGroup = (groupId: string, patch: { name?: string; emoji?: string | null; forfeit_text?: string | null }) =>
   rpc('update_group', { p_group_id: groupId, p_name: patch.name ?? null, p_emoji: patch.emoji ?? null, p_forfeit_text: patch.forfeit_text ?? null });
 export const markForfeitPaid = (forfeitId: string) => rpc('mark_forfeit_paid', { p_forfeit_id: forfeitId });

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { setAvatar } from '@/lib/api/profile';
 import { updateProfile, usernameAvailable } from '@/lib/api/social';
-import { useInvalidateState, useMe } from '@/lib/appState';
+import { useInvalidateState, useMe, useSession } from '@/lib/appState';
 import { env } from '@/lib/config';
 import { prefs } from '@/lib/prefs';
 import { disablePush, enablePush, pushLabel, pushStatus, type PushStatus } from '@/lib/push';
@@ -15,9 +15,28 @@ import { BackButton } from './_Stub';
 
 export default function Settings() {
   const me = useMe();
+  const { session } = useSession();
   const navigate = useNavigate();
   const invalidate = useInvalidateState();
   const toast = useToast();
+  const email = env.mockState ? 'alex@present.demo' : (session?.user.email ?? null);
+  // The time zone came from the phone at sign-up; it can be re-read from the phone any time.
+  const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tzDiffers = !!me && !!deviceTz && me.tz !== deviceTz;
+  const [tzBusy, setTzBusy] = useState(false);
+  const useDeviceTz = async () => {
+    if (!tzDiffers || tzBusy) return;
+    setTzBusy(true);
+    try {
+      await updateProfile({ tz: deviceTz });
+      await invalidate();
+      toast(`Time zone set to ${deviceTz.replace(/_/g, ' ')}`);
+    } catch (e) {
+      toast(errorMessage(e));
+    } finally {
+      setTzBusy(false);
+    }
+  };
   const [push, setPush] = useState<PushStatus>('unsupported');
   const [pushBusy, setPushBusy] = useState(false);
   useEffect(() => {
@@ -151,11 +170,17 @@ export default function Settings() {
         </Txt>
 
         <Txt variant="label" tone="tertiary" className="mt-8 mb-2">
-          About
+          Account
         </Txt>
         <Group>
-          <ListRow title="Time zone" subtitle={me?.tz} chevron={false} />
-          <ListRow title="Email" subtitle={env.mockState ? 'alex@present.demo' : undefined} chevron={false} />
+          <ListRow title="Signed in as" subtitle={email ?? undefined} chevron={false} />
+          <ListRow
+            title="Time zone"
+            subtitle={me ? (tzDiffers ? `${me.tz.replace(/_/g, ' ')} · this phone is on ${deviceTz.replace(/_/g, ' ')}` : `${me.tz.replace(/_/g, ' ')} · from this phone`) : undefined}
+            trailing={tzDiffers ? <Txt variant="subhead" tone="secondary">{tzBusy ? 'Updating' : 'Use phone'}</Txt> : undefined}
+            onClick={tzDiffers ? useDeviceTz : undefined}
+            chevron={false}
+          />
           <ListRow title="Sign out" destructive onClick={signOut} chevron={false} />
         </Group>
         <Txt variant="footnote" tone="tertiary" className="mt-6">

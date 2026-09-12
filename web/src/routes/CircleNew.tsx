@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
+import { EmojiField, StakesField, stakeText, type StakeChoice } from '@/components/circles/CircleFields';
 import { addToGroup, createGroup } from '@/lib/api/groups';
 import { useFriends, useInvalidateState } from '@/lib/appState';
 import { env } from '@/lib/config';
@@ -16,13 +17,13 @@ export default function CircleNew() {
   const invalidate = useInvalidateState();
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState<string | null>(GROUP_EMOJI[0]);
-  const [stake, setStake] = useState<string | 'custom' | null>(FORFEIT_PRESETS[0]);
+  const [stake, setStake] = useState<StakeChoice>(FORFEIT_PRESETS[0]);
   const [custom, setCustom] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const forfeitText = stake === 'custom' ? custom.trim() || null : stake;
+  const forfeitText = stakeText(stake, custom);
   const canSubmit = name.trim().length > 0 && !busy;
   const room = GROUP_MAX_MEMBERS - 1 - selected.size;
 
@@ -62,30 +63,8 @@ export default function CircleNew() {
             <Input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Hack House" autoCapitalize="words" autoFocus />
           </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Txt variant="footnote" tone="secondary" weight={600}>
-              Emoji
-            </Txt>
-            <div className="flex gap-2 flex-wrap">
-              {GROUP_EMOJI.map((e) => (
-                <Chip key={e} label={e} selected={emoji === e} onClick={() => setEmoji(emoji === e ? null : e)} />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Txt variant="footnote" tone="secondary" weight={600}>
-              Stakes
-            </Txt>
-            <div className="flex gap-2 flex-wrap">
-              {FORFEIT_PRESETS.map((p) => (
-                <Chip key={p} label={p} selected={stake === p} onClick={() => setStake(p)} />
-              ))}
-              <Chip label="Custom" selected={stake === 'custom'} onClick={() => setStake('custom')} />
-              <Chip label="No stakes" selected={stake === null} onClick={() => setStake(null)} />
-            </div>
-            {stake === 'custom' ? <Input value={custom} onChange={(e) => setCustom(e.target.value.slice(0, 80))} placeholder="e.g. carries everyone's bags to class" autoFocus /> : null}
-          </div>
+          <EmojiField value={emoji} onChange={setEmoji} />
+          <StakesField stake={stake} custom={custom} onStake={setStake} onCustom={setCustom} />
 
           {friends.length > 0 ? (
             <div className="flex flex-col gap-1.5">

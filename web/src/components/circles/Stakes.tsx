@@ -26,17 +26,13 @@ export function Stakes({ group: g, meId, nowMs, className }: { group: Group; meI
       <Txt variant="subhead" className="mb-1">
         A miss <span className="font-semibold">{g.forfeit_text}</span>.
       </Txt>
-      {owed.length === 0 ? (
-        <Txt variant="footnote" tone="tertiary">
-          Nobody owes anything.
-        </Txt>
-      ) : (
+      {owed.length > 0 ? (
         <div className="bg-surface rounded-lg overflow-hidden">
           {owed.map((f, i) => (
             <ForfeitRow key={f.id} forfeit={f} group={g} meId={meId} nowMs={nowMs} first={i === 0} />
           ))}
         </div>
-      )}
+      ) : null}
       {settled.length > 0 ? (
         <Txt variant="footnote" tone="tertiary">
           {settled.filter((f) => f.status === 'paid').length} paid · {settled.filter((f) => f.status === 'voided').length} waived

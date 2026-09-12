@@ -361,6 +361,25 @@ await test('week, standings, members in get_state', async () => {
   assert.equal(mine.forfeits.find((f: Row) => f.id === f1.id).status, 'paid');
 });
 
+await test('the creator removes a member or deletes the circle; nobody else can', async () => {
+  await as(alex);
+  const temp = await scalar<Row>(`select public.create_group('Temp')`);
+  await as(out);
+  await q(`select public.join_group($1)`, [temp.invite_code]);
+  await fails(`select public.remove_from_group($1, $2)`, [temp.id, alex], 'Only the person who made the circle');
+  await fails(`select public.delete_group($1)`, [temp.id], 'Only the person who made the circle');
+  await as(alex);
+  await fails(`select public.remove_from_group($1, $2)`, [temp.id, alex], 'Use leave for yourself');
+  await fails(`select public.remove_from_group($1, $2)`, [temp.id, priya], 'not in this circle');
+  const r = await scalar<Row>(`select public.remove_from_group($1, $2)`, [temp.id, out]);
+  assert.deepEqual(r.members.map((m: Row) => m.username), ['alex']);
+  await as(priya);
+  await fails(`select public.remove_from_group($1, $2)`, [temp.id, alex], 'No such circle');
+  await as(alex);
+  await q(`select public.delete_group($1)`, [temp.id]);
+  assert.equal(await scalar(`select count(*)::int from public.groups where id = $1`, [temp.id]), 0);
+});
+
 await test('leaving: the last one out deletes the group', async () => {
   await as(priya);
   await fails(`select public.leave_group($1)`, [g.id], 'You are not in this group');

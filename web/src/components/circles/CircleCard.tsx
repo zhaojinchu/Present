@@ -6,13 +6,11 @@ import { useNavigate } from 'react-router';
 import { groupLabel, presentCount, rankRollCall, rollCall, sessionPhase, type Group } from '@/lib/groups';
 import { fmtTime } from '@/lib/time';
 import type { Occurrence } from '@/lib/types';
-import { ProfileAvatarStack } from '@/components/ProfileAvatarStack';
 import { Card, cx, Icon, Stat, StreakChip, Txt } from '@/ui';
 
 export function CircleCard({ group: g, compact, today = [], nowMs = 0, className }: { group: Group; compact?: boolean; /** Today's occurrences, for the live class line in compact mode. */ today?: Occurrence[]; nowMs?: number; className?: string }) {
   const navigate = useNavigate();
   const alive = g.streak > 0;
-  const people = g.members.map((m) => ({ name: m.display_name, src: m.avatar_url, username: m.username }));
   const weekLine = g.week.total + g.week.upcoming > 0 ? `${g.week.made} of ${g.week.total + g.week.upcoming} this week` : 'No classes yet this week';
 
   if (compact) {
@@ -63,14 +61,9 @@ export function CircleCard({ group: g, compact, today = [], nowMs = 0, className
         <Stat size="md" value={g.best_streak} label="Best" align="end" />
       </div>
       <div className="hairline my-3" />
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <ProfileAvatarStack people={people} size={24} max={5} />
-          <Txt variant="footnote" tone="secondary" lines={1}>
-            {g.members.length} {g.members.length === 1 ? 'member' : 'members'} · {weekLine}
-          </Txt>
-        </div>
-      </div>
+      <Txt variant="footnote" tone="secondary" lines={1} tabular>
+        {weekLine}
+      </Txt>
     </Card>
   );
 }

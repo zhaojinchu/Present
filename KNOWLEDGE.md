@@ -362,6 +362,45 @@ PromptCard, which now uses it too). `lib/lock.ts` ALLOWED shrank to /post/*, /ex
 reachable for the demo. Body grayscale still applies underneath (irrelevant on the dark page, needed for
 sheets). Dark page into the dark camera reads as one flow.
 
+**Emoji board for reactions (12 Sep 2026 ~16:50).** A web page cannot open the iPhone keyboard's emoji
+pane, so the smiley button on a post now opens `components/feed/EmojiSheet.tsx`: a Sheet hosting the
+`emoji-mart` web-component Picker (core package only; `@emoji-mart/react` pins React 16-18 so it is not
+used) with `@emoji-mart/data`, `set: 'native'` (Apple glyphs on iOS), search, categories, skin tones, two
+rows of frequently used. Both load lazily on first open (separate chunks), styled through the picker's CSS
+variables to the app palette. Picking toggles the reaction and closes the sheet. The typed-emoji input from
+earlier in the day is gone.
+
+**Settings account rows, circle admin RPCs (12 Sep 2026 ~17:15).** Settings "About" became "Account":
+"Signed in as" shows the session email; "Time zone" shows the profile zone with "from this phone", or, when
+the phone's `Intl` zone differs, "this phone is on X" with a "Use phone" action that calls update_profile
+(p_tz). `20260913000016_circle_admin.sql`: `remove_from_group(p_group_id, p_user_id)` (creator only, not
+yourself, returns the group object) and `delete_group(p_group_id)` (creator only, cascades); tested in
+sql-test-groups (8 cases now), applied to hosted. present-bb owns the circle-detail UI changes the user
+asked for (no invite code on the page, person-plus icon for adding, stakes without the "nobody owes"
+line, an ellipsis/edit sheet with remove member / delete / leave, no repeated avatars).
+
+**Emoji sheet scroll and real "frequently used" (12 Sep 2026 ~17:30).** The vaul drawer treated touches
+inside the picker (a shadow-DOM web component, so its inner scroller is invisible to the drawer's
+scrollable check) as sheet drags; `EmojiSheet` now stops pointer and touch propagation at the picker host
+and sets `touch-action: pan-y`, so the board scrolls and the sheet still closes from the handle or scrim.
+"Frequently used" is seeded from the person's actual reactions in the current state (native emoji mapped
+to emoji-mart ids, written into `localStorage['emoji-mart.frequently']`, max-merged with what the device
+already counted); `ReactionBar` passes `history`. Note: `npm run web:build` runs `tsc -b` first, so a
+half-finished edit anywhere in `web/src` (either session) blocks both sessions' deploys; production keeps
+the last good bundle.
+
+**Stage 7 manage (12 Sep 2026 ~14:40).** User: no invite code on the circle page, person-plus instead of
+share, no "nobody owes" line, easy member removal and editing, no repeated faces. `/circles/:id` is now
+hero card (streak, best, "21 of 29 this week"; no avatars), roll call (folded), "Members · this week"
+standings, stakes (section hidden when there is no stake and nothing owed). Header: person-plus →
+`/circles/:id/invite` (`routes/CircleInvite.tsx`: friends not yet in, Invite per row, then the code with
+Share; the only place the code shows), ellipsis → `ManageSheet` in `CircleDetail.tsx` (creator: "Name,
+emoji and stakes" → `/circles/:id/edit` (`routes/CircleEdit.tsx`, always sends all three fields because
+update_group clears nulls), Invite friends, members with tap-again "Remove" per row, "Delete circle";
+member: Invite friends, members, "Leave circle"). `components/circles/CircleFields.tsx` holds the emoji and
+stakes pickers shared by New and Edit. API: `removeFromGroup`, `deleteGroup` (peer's migration 000016).
+Verified on the mock by temporarily marking the fixture's 15-122 as posted (reverted) to get past the lock.
+
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =
 design session if it continues; otherwise this session. Shared: `web/src/lib/types.ts`, `KNOWLEDGE.md`.

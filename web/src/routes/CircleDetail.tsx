@@ -1,19 +1,21 @@
-// /circles/:circleId — the circle: streak, today's roll call, this week's standings, stakes, members.
+// /circles/:circleId — the circle: streak, today's roll call, this week's standings, stakes. Invite
+// is the person-plus in the header; everything else (rename, stakes, remove members, delete or leave)
+// lives behind the ellipsis so the page itself stays short.
 import { useState } from 'react';
-import { IoAdd, IoCopyOutline, IoExitOutline, IoShareOutline } from 'react-icons/io5';
+import { IoCreateOutline, IoEllipsisHorizontal, IoPersonAddOutline } from 'react-icons/io5';
 import { useNavigate, useParams } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { CircleCard } from '@/components/circles/CircleCard';
 import { RollCall } from '@/components/circles/RollCall';
 import { Stakes } from '@/components/circles/Stakes';
 import { Standings } from '@/components/circles/Standings';
-import { addToGroup, leaveGroup } from '@/lib/api/groups';
-import { useAppState, useFriends, useInvalidateState, useMe } from '@/lib/appState';
+import { deleteGroup, leaveGroup, removeFromGroup } from '@/lib/api/groups';
+import { useAppState, useInvalidateState, useMe } from '@/lib/appState';
 import { useNow } from '@/lib/clock';
-import { env } from '@/lib/config';
-import { GROUP_MAX_MEMBERS, groupLabel, rollCall } from '@/lib/groups';
+import { haptic } from '@/lib/haptics';
+import { type Group, groupLabel, rollCall } from '@/lib/groups';
 import { errorMessage } from '@/lib/supabase';
-import { Avatar, Button, Group as GroupList, IconButton, ListRow, StreakChip, Txt, useToast } from '@/ui';
+import { Avatar, Button, Group as GroupList, IconButton, ListRow, Sheet, Txt, useToast } from '@/ui';
 import { BackButton } from './_Stub';
 
 export default function CircleDetail() {
@@ -22,11 +24,7 @@ export default function CircleDetail() {
   const now = useNow(1000);
   const q = useAppState();
   const me = useMe();
-  const { friends } = useFriends();
-  const invalidate = useInvalidateState();
-  const toast = useToast();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [manage, setManage] = useState(false);
 
   const g = q.data?.groups.find((x) => x.id === circleId) ?? null;
   const today = q.data?.today_occurrences ?? [];
@@ -44,62 +42,21 @@ export default function CircleDetail() {
     );
   }
 
-  const memberIds = new Set(g.members.map((m) => m.id));
-  const addable = friends.filter((f) => !memberIds.has(f.id));
-  const inviteUrl = `${env.appUrl || window.location.origin}/circles/join?code=${g.invite_code}`;
   const sessions = rollCall(today, g);
-
-  const share = async () => {
-    const text = `Join "${g.name}" on Present with code ${g.invite_code}: ${inviteUrl}`;
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ title: `Join ${g.name} on Present`, text, url: inviteUrl });
-        return;
-      } catch {
-        // cancelled or unsupported
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      toast('Invite copied');
-    } catch {
-      toast(g.invite_code);
-    }
-  };
-
-  const add = async (userId: string, name: string) => {
-    setBusy(userId);
-    try {
-      await addToGroup(g.id, userId);
-      await invalidate();
-      toast(`${name.split(' ')[0]} is in`);
-    } catch (e) {
-      toast(errorMessage(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const leave = async () => {
-    if (!confirmLeave) {
-      setConfirmLeave(true);
-      window.setTimeout(() => setConfirmLeave(false), 4000);
-      return;
-    }
-    setBusy('leave');
-    try {
-      await leaveGroup(g.id);
-      await invalidate();
-      navigate('/circles', { replace: true });
-    } catch (e) {
-      toast(errorMessage(e));
-      setBusy(null);
-    }
-  };
+  const hasStakes = !!g.forfeit_text || g.forfeits.length > 0;
 
   return (
     <Screen>
-      <Header title={groupLabel(g)} left={<BackButton />} right={<IconButton icon={IoShareOutline} label="Invite" tone="plain" onClick={share} />} />
+      <Header
+        title={groupLabel(g)}
+        left={<BackButton />}
+        right={
+          <>
+            <IconButton icon={IoPersonAddOutline} label="Invite friends" tone="plain" onClick={() => navigate(`/circles/${g.id}/invite`)} />
+            <IconButton icon={IoEllipsisHorizontal} label="Manage circle" tone="plain" onClick={() => setManage(true)} />
+          </>
+        }
+      />
       <Main>
         <CircleCard group={g} className="mt-1" />
 
@@ -113,51 +70,132 @@ export default function CircleDetail() {
         ) : null}
 
         <Txt variant="label" tone="tertiary" className="mt-6 mb-2">
-          This week
+          Members · this week
         </Txt>
         <Standings group={g} meId={me?.id ?? null} />
 
-        <Txt variant="label" tone="tertiary" className="mt-6 mb-2">
-          Stakes
-        </Txt>
-        <Stakes group={g} meId={me?.id ?? null} nowMs={now} />
-
-        <Txt variant="label" tone="tertiary" className="mt-6 mb-2">
-          Members
-        </Txt>
-        <GroupList>
-          {g.members.map((m) => (
-            <ListRow key={m.id} leading={<Avatar name={m.display_name} src={m.avatar_url} size={32} />} title={m.id === me?.id ? `${m.display_name} (you)` : m.display_name} subtitle={`@${m.username}`} trailing={<StreakChip value={m.streak} size="sm" />} onClick={m.id === me?.id ? undefined : () => navigate(`/u/${m.username}`)} chevron={false} />
-          ))}
-        </GroupList>
-
-        {addable.length > 0 && g.members.length < GROUP_MAX_MEMBERS ? (
+        {hasStakes ? (
           <>
             <Txt variant="label" tone="tertiary" className="mt-6 mb-2">
-              Invite friends
+              Stakes
             </Txt>
-            <GroupList>
-              {addable.map((f) => (
-                <ListRow key={f.id} leading={<Avatar name={f.display_name} src={f.avatar_url} size={32} />} title={f.display_name} subtitle={`@${f.username}`} trailing={<Button title="Invite" size="sm" icon={IoAdd} loading={busy === f.id} onClick={() => add(f.id, f.display_name)} />} chevron={false} />
-              ))}
-            </GroupList>
+            <Stakes group={g} meId={me?.id ?? null} nowMs={now} className="mb-8" />
           </>
-        ) : null}
-
-        <Txt variant="label" tone="tertiary" className="mt-6 mb-2">
-          Invite
-        </Txt>
-        <div className="bg-surface rounded-lg p-4 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <Txt variant="title" tabular style={{ letterSpacing: 4 }}>
-              {g.invite_code}
-            </Txt>
-          </div>
-          <Button title="Copy" variant="secondary" size="sm" icon={IoCopyOutline} onClick={share} />
-        </div>
-
-        <Button title={confirmLeave ? 'Tap again to leave' : 'Leave circle'} variant={confirmLeave ? 'destructive' : 'tertiary'} size="lg" icon={IoExitOutline} loading={busy === 'leave'} className="mt-8 mb-8" onClick={leave} />
+        ) : (
+          <div className="mb-8" />
+        )}
       </Main>
+
+      <ManageSheet group={g} meId={me?.id ?? null} open={manage} onOpenChange={setManage} />
     </Screen>
+  );
+}
+
+/** Rename and stakes, invite, remove members (creator), delete (creator) or leave (member). */
+function ManageSheet({ group: g, meId, open, onOpenChange }: { group: Group; meId: string | null; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const navigate = useNavigate();
+  const invalidate = useInvalidateState();
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const creator = g.created_by === meId;
+
+  const go = (to: string) => {
+    onOpenChange(false);
+    navigate(to);
+  };
+
+  // Destructive actions ask for a second tap within four seconds.
+  const armed = (key: string) => confirm === key;
+  const arm = (key: string) => {
+    setConfirm(key);
+    window.setTimeout(() => setConfirm((c) => (c === key ? null : c)), 4000);
+  };
+
+  const remove = async (userId: string, name: string) => {
+    if (!armed(userId)) return arm(userId);
+    setBusy(userId);
+    haptic('light');
+    try {
+      await removeFromGroup(g.id, userId);
+      await invalidate();
+      haptic('success');
+      toast(`${name.split(' ')[0]} removed`);
+    } catch (e) {
+      haptic('error');
+      toast(errorMessage(e));
+    } finally {
+      setBusy(null);
+      setConfirm(null);
+    }
+  };
+
+  const destroy = async () => {
+    if (!armed('delete')) return arm('delete');
+    setBusy('delete');
+    haptic('light');
+    try {
+      await deleteGroup(g.id);
+      await invalidate();
+      onOpenChange(false);
+      navigate('/circles', { replace: true });
+    } catch (e) {
+      haptic('error');
+      toast(errorMessage(e));
+      setBusy(null);
+    }
+  };
+
+  const leave = async () => {
+    if (!armed('leave')) return arm('leave');
+    setBusy('leave');
+    haptic('light');
+    try {
+      await leaveGroup(g.id);
+      await invalidate();
+      onOpenChange(false);
+      navigate('/circles', { replace: true });
+    } catch (e) {
+      haptic('error');
+      toast(errorMessage(e));
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={g.name}>
+      <GroupList>
+        {creator ? <ListRow leading={<IoCreateOutline size={20} className="text-text-secondary" />} title="Name, emoji and stakes" onClick={() => go(`/circles/${g.id}/edit`)} /> : null}
+        <ListRow leading={<IoPersonAddOutline size={20} className="text-text-secondary" />} title="Invite friends" onClick={() => go(`/circles/${g.id}/invite`)} />
+      </GroupList>
+
+      <Txt variant="label" tone="tertiary" className="mt-5 mb-2">
+        Members
+      </Txt>
+      <GroupList>
+        {g.members.map((m) => {
+          const self = m.id === meId;
+          const trailing =
+            self ? (
+              <Txt variant="footnote" tone="tertiary" as="span">
+                You
+              </Txt>
+            ) : creator ? (
+              <Button title={armed(m.id) ? 'Sure?' : 'Remove'} variant={armed(m.id) ? 'destructive' : 'tertiary'} size="sm" loading={busy === m.id} onClick={() => remove(m.id, m.display_name)} />
+            ) : m.id === g.created_by ? (
+              <Txt variant="footnote" tone="tertiary" as="span">
+                Made it
+              </Txt>
+            ) : null;
+          return <ListRow key={m.id} leading={<Avatar name={m.display_name} src={m.avatar_url} size={32} />} title={m.display_name} subtitle={`@${m.username}`} trailing={trailing} chevron={false} />;
+        })}
+      </GroupList>
+
+      {creator ? (
+        <Button title={armed('delete') ? 'Tap again to delete for everyone' : 'Delete circle'} variant={armed('delete') ? 'destructive' : 'tertiary'} size="lg" loading={busy === 'delete'} className="mt-5" onClick={destroy} />
+      ) : (
+        <Button title={armed('leave') ? 'Tap again to leave' : 'Leave circle'} variant={armed('leave') ? 'destructive' : 'tertiary'} size="lg" loading={busy === 'leave'} className="mt-5" onClick={leave} />
+      )}
+    </Sheet>
   );
 }
