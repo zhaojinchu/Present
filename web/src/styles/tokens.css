@@ -1,0 +1,139 @@
+/*
+ * Present design tokens for the web app. Ported one-to-one from the design session's
+ * DESIGN.md / lib/theme.ts (scheme A, light). If a screen needs a value that is not here,
+ * the tokens are wrong, not the screen.
+ *
+ * Tailwind v4 reads @theme variables and generates utilities from them:
+ *   --color-x         -> bg-x, text-x, border-x
+ *   --text-x          -> text-x (size + line-height + weight + tracking)
+ *   --radius-x        -> rounded-x
+ */
+@import 'tailwindcss';
+
+@theme {
+  /* ---- colour: surface ladder (elevation = a slightly darker grey, never a shadow) */
+  --color-bg: #ffffff;
+  --color-surface: #f4f4f6;
+  --color-surface-raised: #eaeaee;
+  --color-surface-overlay: #dedee4;
+  --color-scrim: rgb(0 0 0 / 0.55);
+
+  /* ---- lines */
+  --color-border: rgb(0 0 0 / 0.08);
+  --color-border-strong: rgb(0 0 0 / 0.16);
+
+  /* ---- text: near-black; hierarchy by opacity, not hue */
+  --color-text: #0a0a0b;
+  --color-text-secondary: rgb(10 10 11 / 0.62);
+  --color-text-tertiary: rgb(10 10 11 / 0.42);
+  --color-text-disabled: rgb(10 10 11 / 0.28);
+  --color-text-inverse: #ffffff;
+
+  /* ---- action colour: primary button, links, selected checks. Mono. */
+  --color-accent: #0a0a0b;
+  --color-accent-pressed: #2a2a2f;
+  --color-accent-soft: rgb(10 10 11 / 0.08);
+  --color-on-accent: #ffffff;
+
+  /* ---- the spot colour: flame icon, streak numbers, my reaction. Nowhere else. */
+  --color-ember: #ff6b1f;
+  --color-ember-deep: #e85f19;
+  --color-ember-soft: rgb(255 107 31 / 0.14);
+
+  /* ---- semantic (darkened for white so text passes contrast); soft = badge/disc fills only */
+  --color-success: #1e9e4a;
+  --color-success-soft: rgb(30 158 74 / 0.12);
+  --color-danger: #df3327;
+  --color-danger-soft: rgb(223 51 39 / 0.12);
+  --color-warning: #9a6b00;
+  --color-warning-soft: rgb(255 190 0 / 0.2);
+  --color-info: #0b7bc2;
+  --color-info-soft: rgb(11 123 194 / 0.12);
+
+  /* ---- capture palette: camera, preview and upload are the one dark surface */
+  --color-capture-bg: #0a0a0b;
+  --color-capture-text: #f2f2f5;
+  --color-capture-text-secondary: rgb(242 242 245 / 0.64);
+  --color-capture-surface-raised: #1e1e22;
+  --color-capture-border: rgb(255 255 255 / 0.08);
+
+  /* ---- avatar fills: pastel so near-black initials stay legible */
+  --color-avatar-1: #dadcf8;
+  --color-avatar-2: #cdebdf;
+  --color-avatar-3: #f5d7e6;
+  --color-avatar-4: #eee3cc;
+  --color-avatar-5: #d6e6f2;
+  --color-avatar-6: #f3dbd3;
+
+  /* ---- type: system font, weight for hierarchy, tabular digits on counters */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --text-display: 44px;
+  --text-display--line-height: 48px;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -1.2px;
+  --text-stat: 28px;
+  --text-stat--line-height: 32px;
+  --text-stat--font-weight: 700;
+  --text-stat--letter-spacing: -0.6px;
+  --text-large-title: 32px;
+  --text-large-title--line-height: 38px;
+  --text-large-title--font-weight: 700;
+  --text-large-title--letter-spacing: -0.6px;
+  --text-title: 22px;
+  --text-title--line-height: 28px;
+  --text-title--font-weight: 700;
+  --text-title--letter-spacing: -0.3px;
+  --text-headline: 17px;
+  --text-headline--line-height: 22px;
+  --text-headline--font-weight: 600;
+  --text-body: 17px;
+  --text-body--line-height: 22px;
+  --text-body--font-weight: 400;
+  --text-subhead: 15px;
+  --text-subhead--line-height: 20px;
+  --text-subhead--font-weight: 400;
+  --text-footnote: 13px;
+  --text-footnote--line-height: 18px;
+  --text-footnote--font-weight: 400;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-caption--font-weight: 500;
+  --text-label: 11px;
+  --text-label--line-height: 14px;
+  --text-label--font-weight: 600;
+  --text-label--letter-spacing: 0.7px;
+
+  /* ---- radius: 8 chips, 12 buttons/inputs, 16 cards, 20 edge-to-edge photos and sheets */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* ---- motion */
+  --ease-press: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 400ms;
+}
+
+/* Sizes that are not Tailwind theme namespaces but every screen needs. */
+:root {
+  --gutter: 16px;
+  --touch: 44px;
+  --button-sm: 36px;
+  --button-md: 44px;
+  --button-lg: 52px;
+  --input: 52px;
+  --avatar-xs: 24px;
+  --avatar-sm: 32px;
+  --avatar-md: 40px;
+  --avatar-lg: 56px;
+  --avatar-xl: 72px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --tabbar: 50px;
+  --header: 52px;
+}

@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
-import { Button, Card, ErrorText, Muted, P, Row, Spacer } from '@/components/ui';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { Button, EmptyState, ErrorText, Group, ListRow, Txt } from '@/components/ui';
 import { listMyClasses } from '@/lib/api/schedule';
 import { useCircleState } from '@/lib/circleState';
 import { useSession } from '@/lib/session';
@@ -51,63 +51,54 @@ export default function ScheduleScreen() {
     }
   }
 
+  const hasClasses = !!classes && classes.length > 0;
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, paddingHorizontal: space.lg }}>
-      <Stack.Screen options={{ title: isOnboarding ? 'Add your classes' : 'Your schedule' }} />
-      <FlatList
-        data={classes ?? []}
-        keyExtractor={(c) => c.id}
-        ListHeaderComponent={
-          <View style={{ paddingTop: space.md, paddingBottom: space.sm }}>
-            {isOnboarding ? (
-              <P style={{ marginBottom: space.sm }}>Enter every lecture you're expected at. You can edit this later from the You tab.</P>
-            ) : null}
-            <Muted>Check-in window: 10 min before to 15 min after start. Skip = no check-in by 10 min after the end.</Muted>
-            <ErrorText>{error}</ErrorText>
-            <Spacer h={space.sm} />
-          </View>
-        }
-        renderItem={({ item }) => (
-          <Pressable onPress={() => router.push(`/schedule/edit?id=${item.id}`)}>
-            <Card>
-              <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800' }}>{item.course_code}</Text>
-                  {item.name ? <Muted numberOfLines={1}>{item.name}</Muted> : null}
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: colors.text, fontWeight: '600' }}>
-                    {fmtDays(item.days_of_week)} · {fmtClock(item.start_time)} – {fmtClock(item.end_time)}
-                  </Text>
-                  <Muted>{item.building_code}</Muted>
-                </View>
-              </Row>
-            </Card>
-          </Pressable>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Stack.Screen options={{ title: isOnboarding ? 'Add your classes' : 'Schedule' }} />
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }} showsVerticalScrollIndicator={false}>
+        {isOnboarding ? (
+          <Txt variant="body" style={{ marginBottom: space.sm }}>
+            Enter every lecture you're expected at. You can edit this later from the You tab.
+          </Txt>
+        ) : null}
+        <Txt variant="footnote" tone="secondary" style={{ marginBottom: space.lg }}>
+          Check-in window is 10 min before to 15 min after start. No check-in by 10 min after the end counts as a skip.
+        </Txt>
+        <ErrorText>{error}</ErrorText>
+
+        {classes === null ? (
+          <ActivityIndicator color={colors.textSecondary} style={{ marginTop: space.xl }} />
+        ) : classes.length === 0 ? (
+          <EmptyState icon="calendar-outline" title="No classes yet" message="Add your first one below." />
+        ) : (
+          <Group>
+            {classes.map((item) => (
+              <ListRow
+                key={item.id}
+                title={item.course_code}
+                subtitle={[item.name, item.building_code].filter(Boolean).join(' · ')}
+                trailing={
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Txt variant="subhead" weight="600" tabular>
+                      {fmtDays(item.days_of_week)}
+                    </Txt>
+                    <Txt variant="footnote" tone="secondary" tabular>
+                      {fmtClock(item.start_time)} to {fmtClock(item.end_time)}
+                    </Txt>
+                  </View>
+                }
+                onPress={() => router.push(`/schedule/edit?id=${item.id}`)}
+              />
+            ))}
+          </Group>
         )}
-        ListEmptyComponent={
-          classes === null ? (
-            <ActivityIndicator color={colors.accent} style={{ marginTop: space.xl }} />
-          ) : (
-            <Card>
-              <P>No classes yet.</P>
-              <Muted style={{ marginTop: space.xs }}>Add your first one below.</Muted>
-            </Card>
-          )
-        }
-        ListFooterComponent={
-          <View style={{ paddingVertical: space.md, paddingBottom: space.xxl }}>
-            <Button title="Add class" variant={classes && classes.length > 0 ? 'secondary' : 'primary'} onPress={() => router.push('/schedule/edit')} />
-            {isOnboarding && classes && classes.length > 0 ? (
-              <>
-                <Spacer h={space.sm} />
-                <Button title="Done" size="lg" loading={busy} onPress={onDone} />
-              </>
-            ) : null}
-          </View>
-        }
-        showsVerticalScrollIndicator={false}
-      />
+
+        <View style={{ gap: space.sm, marginTop: space.xl }}>
+          <Button title="Add class" icon="add" variant={hasClasses ? 'secondary' : 'primary'} onPress={() => router.push('/schedule/edit')} />
+          {isOnboarding && hasClasses ? <Button title="Done" size="lg" loading={busy} onPress={onDone} /> : null}
+        </View>
+      </ScrollView>
     </View>
   );
 }

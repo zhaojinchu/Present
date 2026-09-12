@@ -1,11 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Avatar, Button, Card, ErrorText, Muted, P, Row } from '@/components/ui';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Avatar, Badge, Button, ErrorText, Row, Stat, StreakChip, Txt } from '@/components/ui';
 import { markForfeitPaid } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, motion, radius, size, space } from '@/lib/theme';
 import { fmtTime, relative } from '@/lib/time';
 import type { FeedEvent, Forfeit, Member, Reaction } from '@/lib/types';
 import { Photo } from './Photo';
@@ -18,117 +19,165 @@ interface Props {
   forfeits: Forfeit[];
   reactions: Reaction[];
   nowMs?: number;
+  /** The explanation posted for this skip, rendered as a quote under it. */
+  explanation?: FeedEvent | null;
 }
 
-export function FeedCard({ event, me, members, forfeits, reactions, nowMs = Date.now() }: Props) {
+/**
+ * One feed item. Edge-to-edge row, X anatomy: 40pt avatar, name bold and the
+ * action regular on one line, timestamp right, content aligned to the text column.
+ * No coloured cards: state lives in a badge, an icon or one word.
+ */
+export function FeedCard({ event, me, members, forfeits, reactions, nowMs = Date.now(), explanation }: Props) {
   const p = event.payload;
   const name = p.display_name ?? members.find((m) => m.id === event.actor_id)?.display_name ?? 'Someone';
+  const avatarUrl = p.avatar_url ?? members.find((m) => m.id === event.actor_id)?.avatar_url ?? null;
   const when = relative(event.created_at, nowMs);
 
-  let body: React.ReactNode;
   switch (event.type) {
     case 'checkin':
-      body = <CheckinBody event={event} name={name} when={when} />;
-      break;
+      return <CheckinItem event={event} name={name} avatarUrl={avatarUrl} when={when} me={me} reactions={reactions} />;
     case 'skip':
-      body = <SkipBody event={event} name={name} when={when} me={me} />;
-      break;
+      return <SkipItem event={event} name={name} avatarUrl={avatarUrl} when={when} me={me} reactions={reactions} explanation={explanation} nowMs={nowMs} />;
     case 'forfeit_owed':
-      body = <ForfeitOwedBody event={event} name={name} when={when} me={me} forfeits={forfeits} />;
-      break;
+      return <ForfeitOwedItem event={event} name={name} avatarUrl={avatarUrl} when={when} me={me} forfeits={forfeits} reactions={reactions} />;
     case 'explanation':
-      body = (
-        <Card style={styles.quoteCard}>
-          <Muted style={styles.meta}>{when}</Muted>
-          <P style={styles.quote}>
-            <Text style={styles.name}>{name}: </Text>“{p.text ?? ''}”
-          </P>
-          <ReactionRow eventId={event.id} reactions={reactions} me={me} />
-        </Card>
+      return (
+        <Item name={name} avatarUrl={avatarUrl} action="explained" when={when}>
+          <Quote text={p.text ?? ''} eventId={event.id} me={me} reactions={reactions} />
+        </Item>
       );
-      break;
     case 'excused':
-      body = (
-        <Card tone={colors.blue} style={styles.mutedCard}>
-          <Muted style={styles.meta}>{when}</Muted>
-          <P>
-            <Text style={styles.name}>{name}</Text> is excused from {p.course_code ?? 'class'}{' '}
-            <Text style={{ color: colors.muted }}>(sick / emergency)</Text>
-          </P>
+      return (
+        <Item name={name} avatarUrl={avatarUrl} action={`is excused from ${p.course_code ?? 'class'}`} when={when} badge="info">
+          <Row gap={space.sm} style={{ marginTop: space.sm }}>
+            <Badge label="Excused" tone="info" />
+            <Txt variant="footnote" tone="secondary">
+              Sick or emergency. Streak stays.
+            </Txt>
+          </Row>
           <ReactionRow eventId={event.id} reactions={reactions} me={me} />
-        </Card>
+        </Item>
       );
-      break;
     case 'forfeit_paid':
-      body = (
-        <Card tone={colors.green}>
-          <Muted style={styles.meta}>{when}</Muted>
-          <P>
-            <Text style={styles.name}>{name}</Text> paid up{' '}
-            <Text style={{ color: colors.green, fontWeight: '800' }}>✓</Text>
-            {p.paid_by_name ? <Text style={{ color: colors.muted }}> · confirmed by {p.paid_by_name}</Text> : null}
-          </P>
-          {p.description ? <Muted style={{ marginTop: 4 }}>{p.description}</Muted> : null}
+      return (
+        <Item name={name} avatarUrl={avatarUrl} action="paid up" when={when} badge="success">
+          <Row gap={space.sm} style={{ marginTop: space.sm }}>
+            <Badge label="Paid" tone="success" icon="checkmark" />
+            <Txt variant="footnote" tone="secondary" numberOfLines={1} style={{ flex: 1 }}>
+              {[p.description, p.paid_by_name ? `confirmed by ${p.paid_by_name}` : null].filter(Boolean).join(' · ')}
+            </Txt>
+          </Row>
           <ReactionRow eventId={event.id} reactions={reactions} me={me} />
-        </Card>
+        </Item>
       );
-      break;
     case 'member_joined':
-      body = (
-        <View style={styles.oneLiner}>
-          <Muted>
-            <Text style={{ color: colors.text, fontWeight: '700' }}>{name}</Text> {p.created ? 'created the circle' : 'joined the circle'} · {when}
-          </Muted>
+      return (
+        <View style={styles.system}>
+          <Txt variant="footnote" tone="tertiary" align="center">
+            <Txt variant="footnote" tone="secondary" weight="600">
+              {name}
+            </Txt>{' '}
+            {p.created ? 'created the circle' : 'joined the circle'} · {when}
+          </Txt>
         </View>
       );
-      break;
     default:
-      body = (
-        <Card>
-          <Muted>{when}</Muted>
-          <P>{name}</P>
-        </Card>
+      return (
+        <Item name={name} avatarUrl={avatarUrl} action="" when={when}>
+          {null}
+        </Item>
       );
   }
-  return <>{body}</>;
+}
+
+// ---------------------------------------------------------------- shared shell
+
+type BadgeTone = 'success' | 'danger' | 'warning' | 'info';
+
+function AvatarStatus({ tone }: { tone: BadgeTone }) {
+  const bg = { success: colors.success, danger: colors.danger, warning: colors.warning, info: colors.info }[tone];
+  const icon = { success: 'checkmark', danger: 'close', warning: 'alert', info: 'medkit' }[tone] as React.ComponentProps<typeof Ionicons>['name'];
+  return (
+    <View style={styles.avatarStatus}>
+      <View style={[styles.avatarStatusInner, { backgroundColor: bg }]}>
+        <Ionicons name={icon} size={10} color={colors.textInverse} />
+      </View>
+    </View>
+  );
+}
+
+function Item({
+  name,
+  avatarUrl,
+  action,
+  when,
+  badge,
+  children,
+}: {
+  name: string;
+  avatarUrl: string | null;
+  action: React.ReactNode;
+  when: string;
+  badge?: BadgeTone;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.item}>
+      <View style={styles.avatarWrap}>
+        <Avatar name={name} uri={avatarUrl} size={size.avatarMd} />
+        {badge ? <AvatarStatus tone={badge} /> : null}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }} gap={space.sm}>
+          <Txt variant="body" style={{ flex: 1 }}>
+            <Txt variant="headline">{name}</Txt> {action}
+          </Txt>
+          <Txt variant="footnote" tone="tertiary" style={{ marginTop: 2 }}>
+            {when}
+          </Txt>
+        </Row>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+function Quote({ text, eventId, me, reactions, when }: { text: string; eventId: string; me: string; reactions: Reaction[]; when?: string }) {
+  return (
+    <View style={styles.quote}>
+      <Txt variant="body">“{text}”</Txt>
+      {when ? (
+        <Txt variant="footnote" tone="tertiary" style={{ marginTop: 4 }}>
+          {when}
+        </Txt>
+      ) : null}
+      <ReactionRow eventId={eventId} reactions={reactions} me={me} />
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------- check-in
 
-function CheckinBody({ event, name, when }: { event: FeedEvent; name: string; when: string }) {
-  const { state } = useCircleState();
+function CheckinItem({ event, name, avatarUrl, when, me, reactions }: { event: FeedEvent; name: string; avatarUrl: string | null; when: string; me: string; reactions: Reaction[] }) {
   const p = event.payload;
   return (
-    <Card>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row gap={10}>
-          <Avatar name={name} uri={p.avatar_url} size={34} />
-          <View>
-            <P>
-              <Text style={styles.name}>{name}</Text> checked in to {p.course_code ?? 'class'}
-            </P>
-            <Muted style={styles.meta}>{when}</Muted>
-          </View>
-        </Row>
-      </Row>
+    <Item name={name} avatarUrl={avatarUrl} action={`checked in to ${p.course_code ?? 'class'}`} when={when} badge="success">
       <View style={{ marginTop: space.md }}>
         <Photo path={p.photo_path} />
-        {p.photo_back_path ? <Photo path={p.photo_back_path} style={styles.backInset} /> : null}
+        {p.photo_back_path ? <Photo path={p.photo_back_path} style={styles.pip} radius={radius.sm} /> : null}
       </View>
-      <Row style={{ marginTop: space.md }} gap={8}>
+      <Row gap={space.sm} style={{ marginTop: space.md }}>
+        {typeof p.personal_streak_after === 'number' ? <StreakChip value={p.personal_streak_after} size="sm" /> : null}
         {typeof p.personal_streak_after === 'number' ? (
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>🔥 {p.personal_streak_after}</Text>
-          </View>
+          <Txt variant="footnote" tone="secondary">
+            day streak
+          </Txt>
         ) : null}
-        {p.in_geofence === false ? (
-          <View style={[styles.chip, { borderColor: colors.faint }]}>
-            <Text style={[styles.chipText, { color: colors.muted }]}>outside geofence</Text>
-          </View>
-        ) : null}
+        {p.in_geofence === false ? <Badge label="Outside building" tone="neutral" icon="location-outline" style={{ marginLeft: 'auto' }} /> : null}
       </Row>
-      <ReactionRow eventId={event.id} reactions={state?.reactions ?? []} me={state?.me ?? ''} />
-    </Card>
+      <ReactionRow eventId={event.id} reactions={reactions} me={me} />
+    </Item>
   );
 }
 
@@ -141,75 +190,108 @@ function DyingNumber({ from }: { from: number }) {
     const id = anim.addListener(({ value }) => setVal(Math.max(0, Math.round(value))));
     Animated.timing(anim, {
       toValue: 0,
-      duration: 800,
-      delay: 400,
+      duration: motion.slow * 2,
+      delay: motion.slow,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
     return () => anim.removeListener(id);
   }, [anim]);
   return (
-    <Text style={[styles.dying, val === 0 && { color: colors.red }]}>
-      {val}
-      {val === 0 ? ' 💀' : ''}
-    </Text>
+    <Txt variant="stat" tone={val === 0 ? 'danger' : 'primary'} tabular>
+      {String(val)}
+    </Txt>
   );
 }
 
-function SkipBody({ event, name, when, me }: { event: FeedEvent; name: string; when: string; me: string }) {
+function SkipItem({
+  event,
+  name,
+  avatarUrl,
+  when,
+  me,
+  reactions,
+  explanation,
+  nowMs,
+}: {
+  event: FeedEvent;
+  name: string;
+  avatarUrl: string | null;
+  when: string;
+  me: string;
+  reactions: Reaction[];
+  explanation?: FeedEvent | null;
+  nowMs: number;
+}) {
   const { state } = useCircleState();
   const router = useRouter();
   const p = event.payload;
   const unexplained = event.actor_id === me && !!event.ref_id && (state?.my_unexplained_skips ?? []).some((s) => s.id === event.ref_id);
   const before = p.circle_streak_before ?? 0;
   return (
-    <Card tone={colors.red} style={styles.skipCard}>
-      <Muted style={styles.meta}>{when}</Muted>
-      <P>
-        <Text style={styles.name}>{name}</Text> skipped {p.course_code ?? 'class'}
-        {p.starts_at ? ` at ${fmtTime(p.starts_at)}` : ''}
-      </P>
-      <Row style={{ marginTop: space.sm }} gap={6}>
-        <Text style={styles.streakLine}>Circle streak</Text>
-        <Text style={styles.streakLine}>🔥 {before}</Text>
-        <Text style={styles.streakLine}>→</Text>
-        <DyingNumber from={before} />
+    <Item
+      name={name}
+      avatarUrl={avatarUrl}
+      action={
+        <>
+          <Txt variant="body" tone="danger" weight="600">
+            skipped
+          </Txt>{' '}
+          {p.course_code ?? 'class'}
+          {p.starts_at ? ` at ${fmtTime(p.starts_at)}` : ''}
+        </>
+      }
+      when={when}
+      badge="danger"
+    >
+      <Row gap={space.md} style={{ marginTop: space.md }}>
+        <Stat size="md" value={before} label="Circle streak" tone="tertiary" />
+        <Ionicons name="arrow-forward" size={size.iconMd} color={colors.textTertiary} style={{ marginBottom: 14 }} />
+        <Stat size="md" value={<DyingNumber from={before} />} label="Now" tone="danger" />
+        {typeof p.personal_streak_before === 'number' ? (
+          <Txt variant="footnote" tone="tertiary" style={{ marginLeft: 'auto', alignSelf: 'flex-end', marginBottom: 14 }} tabular>
+            own streak {p.personal_streak_before} to 0
+          </Txt>
+        ) : null}
       </Row>
-      {typeof p.personal_streak_before === 'number' ? (
-        <Muted style={{ marginTop: 4 }}>
-          {name}'s streak: {p.personal_streak_before} → 0
-        </Muted>
-      ) : null}
       {unexplained ? (
         <Button
           title="Explain yourself"
-          variant="danger"
+          variant="secondary"
           size="sm"
+          icon="chatbubble-outline"
           style={{ marginTop: space.md, alignSelf: 'flex-start' }}
           onPress={() => router.push(`/explain/${event.ref_id}` as never)}
         />
       ) : null}
-      <ReactionRow eventId={event.id} reactions={state?.reactions ?? []} me={me} />
-    </Card>
+      <ReactionRow eventId={event.id} reactions={reactions} me={me} />
+      {explanation ? (
+        <Quote text={explanation.payload.text ?? ''} eventId={explanation.id} me={me} reactions={reactions} when={relative(explanation.created_at, nowMs)} />
+      ) : null}
+    </Item>
   );
 }
 
 // ---------------------------------------------------------------- forfeit owed
 
-function ForfeitOwedBody({
+function ForfeitOwedItem({
   event,
   name,
+  avatarUrl,
   when,
   me,
   forfeits,
+  reactions,
 }: {
   event: FeedEvent;
   name: string;
+  avatarUrl: string | null;
   when: string;
   me: string;
   forfeits: Forfeit[];
+  reactions: Reaction[];
 }) {
-  const { state, refresh } = useCircleState();
+  const { refresh } = useCircleState();
   const router = useRouter();
   const p = event.payload;
   const forfeit = forfeits.find((f) => f.id === p.forfeit_id);
@@ -233,72 +315,83 @@ function ForfeitOwedBody({
     }
   };
 
-  const tone = status === 'paid' ? colors.green : status === 'voided' ? colors.faint : colors.amber;
+  const open = () => p.forfeit_id && router.push(`/forfeit/${p.forfeit_id}` as never);
+
   return (
-    <Pressable onPress={() => p.forfeit_id && router.push(`/forfeit/${p.forfeit_id}` as never)}>
-      <Card tone={tone}>
-        <Muted style={styles.meta}>{when}</Muted>
+    <Item name={name} avatarUrl={avatarUrl} action={`owes the circle: ${description}`} when={when} badge="warning">
+      <Row gap={space.sm} style={{ marginTop: space.sm, flexWrap: 'wrap' }}>
         {status === 'owed' ? (
           <>
-            <P>
-              <Text style={styles.name}>{name}</Text> owes: <Text style={{ color: colors.amber, fontWeight: '800' }}>{description}</Text>
-            </P>
+            <Badge label="Owed" tone="warning" />
             {owedByMe ? (
-              <Muted style={{ marginTop: space.sm }}>Someone else in the circle clears this.</Muted>
+              <Txt variant="footnote" tone="secondary" style={{ flex: 1 }}>
+                Someone else in the circle clears this.
+              </Txt>
             ) : (
-              <Button
-                title="Mark paid"
-                variant="success"
-                size="sm"
-                loading={busy}
-                style={{ marginTop: space.md, alignSelf: 'flex-start' }}
-                onPress={pay}
-              />
+              <Button title="Mark paid" variant="secondary" size="sm" icon="checkmark" loading={busy} onPress={pay} />
             )}
-            <ErrorText>{err}</ErrorText>
+            <Pressable onPress={open} hitSlop={8} style={({ pressed }) => ({ marginLeft: 'auto', opacity: pressed ? 0.6 : 1 })}>
+              <Ionicons name="chevron-forward" size={size.iconMd} color={colors.textTertiary} />
+            </Pressable>
           </>
         ) : status === 'paid' ? (
-          <P>
-            <Text style={styles.name}>{name}</Text>: {description}{' '}
-            <Text style={{ color: colors.green, fontWeight: '800' }}>Paid ✓</Text>
-            {forfeit?.paid_by_name ? <Text style={{ color: colors.muted }}> confirmed by {forfeit.paid_by_name}</Text> : null}
-          </P>
+          <>
+            <Badge label="Paid" tone="success" icon="checkmark" />
+            {forfeit?.paid_by_name ? (
+              <Txt variant="footnote" tone="secondary">
+                confirmed by {forfeit.paid_by_name}
+              </Txt>
+            ) : null}
+          </>
         ) : (
-          <Muted>
-            {name}'s forfeit ({description}) was voided (excused).
-          </Muted>
+          <>
+            <Badge label="Voided" tone="neutral" />
+            <Txt variant="footnote" tone="secondary">
+              The skip was excused.
+            </Txt>
+          </>
         )}
-        <ReactionRow eventId={event.id} reactions={state?.reactions ?? []} me={me} />
-      </Card>
-    </Pressable>
+      </Row>
+      <ErrorText>{err}</ErrorText>
+      <ReactionRow eventId={event.id} reactions={reactions} me={me} />
+    </Item>
   );
 }
 
 const styles = StyleSheet.create({
-  name: { fontWeight: '800', color: colors.text },
-  meta: { fontSize: 12, marginBottom: 4 },
-  quoteCard: { backgroundColor: colors.cardAlt, marginLeft: space.lg },
-  quote: { fontStyle: 'italic' },
-  mutedCard: { opacity: 0.9 },
-  oneLiner: { paddingVertical: 6, paddingHorizontal: 4, marginBottom: space.md },
-  backInset: {
+  item: {
+    flexDirection: 'row',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
+  system: { paddingVertical: space.md, paddingHorizontal: space.lg },
+  avatarWrap: { width: size.avatarMd, height: size.avatarMd },
+  avatarStatus: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: '32%',
+    right: -3,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarStatusInner: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  quote: {
+    marginTop: space.md,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
+    padding: space.md,
+  },
+  pip: {
+    position: 'absolute',
+    top: space.sm,
+    left: space.sm,
+    width: '30%',
     borderWidth: 2,
     borderColor: colors.bg,
   },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  chipText: { color: colors.text, fontWeight: '700', fontSize: 13 },
-  skipCard: { backgroundColor: '#1f1416' },
-  streakLine: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  dying: { color: colors.text, fontSize: 18, fontWeight: '900' },
 });

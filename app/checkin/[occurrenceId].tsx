@@ -8,23 +8,25 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Panel } from '@/components/checkin/Panel';
-import { Button, Center, Muted, Screen, Spacer } from '@/components/ui';
+import { Button, Center, IconButton, Screen, Txt } from '@/components/ui';
 import { submitCheckin } from '@/lib/api/checkin';
 import { useCircleState } from '@/lib/circleState';
 import { useNow } from '@/lib/clock';
 import { DUAL_CAPTURE, requireGeofence } from '@/lib/config';
 import { evaluate, GeoError, getPosition } from '@/lib/geofence';
 import { errorMessage, supabase } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { capture as cam, colors, radius, space, type } from '@/lib/theme';
 import { fmtCountdown } from '@/lib/time';
 import type { Building } from '@/lib/types';
+
+type PanelIcon = React.ComponentProps<typeof Ionicons>['name'];
 
 type Phase =
   | { kind: 'camera' }
   | { kind: 'preview'; front: string; back: string | null }
   | { kind: 'submitting'; front: string; back: string | null; label: string }
   | { kind: 'success'; streak: number }
-  | { kind: 'error'; icon: string; title: string; message: string; retry?: () => void; settings?: boolean };
+  | { kind: 'error'; icon: PanelIcon; title: string; message: string; retry?: () => void; settings?: boolean };
 
 // Attach a no-op handler so an early rejection is not "unhandled"; the original promise
 // still rejects when awaited later.
@@ -100,6 +102,7 @@ export default function CheckinScreen() {
   const capture = useCallback(async () => {
     if (!cameraRef.current || !cameraReady || capturing) return;
     setCapturing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
       const front = await cameraRef.current.takePictureAsync({ quality: 0.7, skipProcessing: false, shutterSound: false });
       if (!front?.uri) throw new Error('The camera returned no photo');
@@ -119,8 +122,8 @@ export default function CheckinScreen() {
     } catch (e) {
       setPhase({
         kind: 'error',
-        icon: '📷',
-        title: 'Camera hiccup',
+        icon: 'camera-outline',
+        title: 'Camera problem',
         message: errorMessage(e),
         retry: () => {
           setCameraReady(false); // the CameraView remounts; wait for its onCameraReady again
@@ -146,7 +149,7 @@ export default function CheckinScreen() {
           if (!r.inside && requireGeofence()) {
             setPhase({
               kind: 'error',
-              icon: '📍',
+              icon: 'location-outline',
               title: 'Not in the building',
               message: `You're ${r.distance} m from ${building.name}. Get inside the building and try again.`,
               retry: () => {
@@ -159,7 +162,7 @@ export default function CheckinScreen() {
         } else if (!building && requireGeofence()) {
           setPhase({
             kind: 'error',
-            icon: '🏢',
+            icon: 'business-outline',
             title: 'Unknown building',
             message: `We don't have a location for ${occurrence.building_code}. Ask whoever set up the schedule to pick a building.`,
             retry: () => submit(front, back),
@@ -172,7 +175,7 @@ export default function CheckinScreen() {
           if (e instanceof GeoError && e.kind === 'denied') {
             setPhase({
               kind: 'error',
-              icon: '📍',
+              icon: 'location-outline',
               title: 'Location is off',
               message: 'Present needs your location to confirm you are in the room. Only a yes/no is stored, never coordinates.',
               settings: true,
@@ -184,7 +187,7 @@ export default function CheckinScreen() {
           } else {
             setPhase({
               kind: 'error',
-              icon: '📡',
+              icon: 'navigate-outline',
               title: 'No location fix',
               message: errorMessage(e),
               retry: () => {
@@ -203,7 +206,7 @@ export default function CheckinScreen() {
       } catch (e) {
         setPhase({
           kind: 'error',
-          icon: '⚠️',
+          icon: 'alert-circle-outline',
           title: 'Check-in failed',
           message: errorMessage(e),
           retry: () => submit(front, back),
@@ -231,7 +234,7 @@ export default function CheckinScreen() {
     return (
       <Screen>
         <Center>
-          <ActivityIndicator color={colors.accent} />
+          <ActivityIndicator color={colors.textSecondary} />
         </Center>
       </Screen>
     );
@@ -240,13 +243,13 @@ export default function CheckinScreen() {
   if (!state) {
     return (
       <Panel
-        icon="📡"
-        tone={colors.red}
+        icon="cloud-offline-outline"
+        tone="danger"
         title="Can't reach the server"
         message={stateError ?? 'Check your connection and try again.'}
         actions={[
           { title: 'Try again', onPress: () => refresh({ maintain: true }) },
-          { title: 'Close', onPress: close, variant: 'ghost' },
+          { title: 'Close', onPress: close, variant: 'tertiary' },
         ]}
       />
     );
@@ -255,7 +258,7 @@ export default function CheckinScreen() {
   if (!occurrence) {
     return (
       <Panel
-        icon="🤔"
+        icon="help-circle-outline"
         title="Class not found"
         message="This class is not on your schedule for today."
         actions={[{ title: 'Close', onPress: close, variant: 'secondary' }]}
@@ -266,11 +269,12 @@ export default function CheckinScreen() {
   if (phase.kind === 'success') {
     return (
       <Panel
-        icon="✅"
-        tone={colors.green}
+        icon="checkmark"
+        tone="success"
         title="You're in."
-        message={`${phase.streak}-day streak`}
-        actions={[{ title: 'Done', onPress: close, variant: 'success' }]}
+        message={`${occurrence.course_code} · counted for today`}
+        stat={{ value: phase.streak, label: phase.streak === 1 ? 'day streak' : 'day streak' }}
+        actions={[{ title: 'Done', onPress: close }]}
       />
     );
   }
@@ -279,15 +283,16 @@ export default function CheckinScreen() {
     const actions = [];
     if (phase.settings) actions.push({ title: 'Open Settings', onPress: openSettings });
     if (phase.retry) actions.push({ title: 'Try again', onPress: phase.retry, variant: phase.settings ? ('secondary' as const) : ('primary' as const) });
-    actions.push({ title: 'Close', onPress: close, variant: 'ghost' as const });
-    return <Panel icon={phase.icon} tone={colors.red} title={phase.title} message={phase.message} actions={actions} />;
+    actions.push({ title: 'Close', onPress: close, variant: 'tertiary' as const });
+    return <Panel icon={phase.icon} tone="danger" title={phase.title} message={phase.message} actions={actions} />;
   }
 
   if (occurrence.status !== 'pending') {
     const label = occurrence.status === 'checked_in' ? 'checked in' : occurrence.status;
     return (
       <Panel
-        icon={occurrence.status === 'checked_in' ? '✅' : '🚫'}
+        icon={occurrence.status === 'checked_in' ? 'checkmark' : 'ban-outline'}
+        tone={occurrence.status === 'checked_in' ? 'success' : 'neutral'}
         title={`Already ${label}`}
         message={`${occurrence.course_code} is already marked ${label} for today.`}
         actions={[{ title: 'Close', onPress: close, variant: 'secondary' }]}
@@ -303,8 +308,8 @@ export default function CheckinScreen() {
   if (closed && (phase.kind === 'camera' || phase.kind === 'preview')) {
     return (
       <Panel
-        icon="⏰"
-        tone={colors.red}
+        icon="time-outline"
+        tone="danger"
         title="Window closed"
         message={`The check-in window for ${occurrence.course_code} closed. Your circle will hear about it.`}
         actions={[{ title: 'Close', onPress: close, variant: 'secondary' }]}
@@ -315,12 +320,12 @@ export default function CheckinScreen() {
   if (perm && !perm.granted) {
     return (
       <Panel
-        icon="📷"
+        icon="camera-outline"
         title="Camera is off"
         message="Present checks you in with a photo from inside the room. Allow camera access to continue."
         actions={[
           ...(perm.canAskAgain ? [{ title: 'Allow camera', onPress: () => requestPerm().catch(() => {}) }] : [{ title: 'Open Settings', onPress: openSettings }]),
-          { title: 'Close', onPress: close, variant: 'ghost' },
+          { title: 'Close', onPress: close, variant: 'tertiary' as const },
         ]}
       />
     );
@@ -330,7 +335,7 @@ export default function CheckinScreen() {
     return (
       <Screen>
         <Center>
-          <ActivityIndicator color={colors.accent} />
+          <ActivityIndicator color={colors.textSecondary} />
         </Center>
       </Screen>
     );
@@ -342,10 +347,13 @@ export default function CheckinScreen() {
         <Image source={{ uri: phase.front }} style={StyleSheet.absoluteFill} contentFit="cover" />
         <View style={styles.dim} />
         <Center>
-          <ActivityIndicator color={colors.accent} size="large" />
-          <Spacer />
-          <Text style={styles.overlayTitle}>{phase.label}…</Text>
-          <Muted>Hold on a second</Muted>
+          <ActivityIndicator color={cam.text} size="large" />
+          <Txt variant="title" style={{ marginTop: space.lg, color: cam.text }}>
+            {phase.label}…
+          </Txt>
+          <Txt variant="subhead" style={{ marginTop: space.xs, color: cam.textSecondary }}>
+            Hold on a second
+          </Txt>
         </Center>
       </View>
     );
@@ -355,13 +363,19 @@ export default function CheckinScreen() {
     return (
       <View style={styles.fill}>
         <Image source={{ uri: phase.front }} style={StyleSheet.absoluteFill} contentFit="cover" />
-        {phase.back ? <Image source={{ uri: phase.back }} style={[styles.inset, { top: insets.top + 12 }]} contentFit="cover" /> : null}
+        {phase.back ? <Image source={{ uri: phase.back }} style={[styles.inset, { top: insets.top + space.md }]} contentFit="cover" /> : null}
         <View style={[styles.previewBar, { paddingBottom: insets.bottom + space.lg }]}>
-          <Button title="Retake" variant="secondary" size="lg" style={styles.previewButton} onPress={() => {
-          setCameraReady(false); // the CameraView remounts; wait for its onCameraReady again
-          setPhase({ kind: 'camera' });
-        }} />
-          <Button title="Use photo" size="lg" style={styles.previewButton} onPress={() => submit(phase.front, phase.back)} />
+          <Button
+            title="Retake"
+            variant="secondary"
+            size="lg"
+            style={styles.previewButton}
+            onPress={() => {
+              setCameraReady(false); // the CameraView remounts; wait for its onCameraReady again
+              setPhase({ kind: 'camera' });
+            }}
+          />
+          <Button title="Use photo" variant="inverse" size="lg" style={styles.previewButton} onPress={() => submit(phase.front, phase.back)} />
         </View>
       </View>
     );
@@ -369,7 +383,7 @@ export default function CheckinScreen() {
 
   // ---------------------------------------------------------------- camera
 
-  const countdown = notOpen ? `opens in ${fmtCountdown(windowStartMs - nowMs)}` : `closes in ${fmtCountdown(windowEndMs - nowMs)}`;
+  const countdown = notOpen ? `Opens in ${fmtCountdown(windowStartMs - nowMs)}` : `Closes in ${fmtCountdown(windowEndMs - nowMs)}`;
   const canCapture = cameraReady && !capturing && !notOpen;
 
   return (
@@ -383,14 +397,13 @@ export default function CheckinScreen() {
       />
 
       <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
-        <Pressable onPress={close} hitSlop={12} style={styles.iconButton}>
-          <Ionicons name="close" size={26} color={colors.text} />
-        </Pressable>
+        <IconButton name="close" onPress={close} bg={cam.scrim} color={cam.text} size={40} iconSize={22} accessibilityLabel="Close" />
         <View style={styles.headerText}>
           <Text style={styles.course}>{occurrence.course_code}</Text>
           <Text style={styles.building}>{occurrence.building_code}</Text>
         </View>
-        <View style={[styles.countdown, notOpen ? styles.countdownWaiting : null]}>
+        <View style={styles.countdown}>
+          {!notOpen ? <View style={styles.liveDot} /> : null}
           <Text style={styles.countdownText}>{countdown}</Text>
         </View>
       </View>
@@ -400,27 +413,26 @@ export default function CheckinScreen() {
         <Pressable
           onPress={capture}
           disabled={!canCapture}
-          style={({ pressed }) => [styles.shutter, { opacity: canCapture ? (pressed ? 0.7 : 1) : 0.4 }]}
+          style={({ pressed }) => [styles.shutter, { opacity: canCapture ? 1 : 0.4, transform: [{ scale: pressed ? 0.94 : 1 }] }]}
           accessibilityLabel="Take photo"
         >
-          {capturing ? <ActivityIndicator color={colors.accentText} /> : <View style={styles.shutterInner} />}
+          {capturing ? <ActivityIndicator color={cam.bg} /> : <View style={styles.shutterInner} />}
         </Pressable>
         <View style={styles.sideSlot}>
-          <Pressable
+          <IconButton
+            name="camera-reverse-outline"
             onPress={() => setFacing((f) => (f === 'front' ? 'back' : 'front'))}
             disabled={capturing}
-            hitSlop={12}
-            style={styles.iconButton}
+            bg={cam.scrim}
+            color={cam.text}
             accessibilityLabel="Flip camera"
-          >
-            <Ionicons name="camera-reverse" size={28} color={colors.text} />
-          </Pressable>
+          />
         </View>
       </View>
 
       {!cameraReady ? (
         <View style={styles.readyOverlay} pointerEvents="none">
-          <ActivityIndicator color={colors.text} />
+          <ActivityIndicator color={cam.text} />
         </View>
       ) : null}
       {notOpen ? (
@@ -432,10 +444,11 @@ export default function CheckinScreen() {
   );
 }
 
+const shadow = { textShadow: '0 1px 6px rgba(0,0,0,0.6)' } as const;
+
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: colors.bg },
-  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,15,18,0.72)' },
-  overlayTitle: { color: colors.text, fontSize: 22, fontWeight: '700', marginBottom: space.xs },
+  fill: { flex: 1, backgroundColor: cam.bg },
+  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)' },
   header: {
     position: 'absolute',
     top: 0,
@@ -447,26 +460,19 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   headerText: { flex: 1 },
-  course: { color: colors.text, fontSize: 20, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
-  building: { color: colors.text, fontSize: 13, opacity: 0.85, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  course: { ...type.headline, color: cam.text, ...shadow },
+  building: { ...type.footnote, color: cam.text, opacity: 0.85, ...shadow },
   countdown: {
-    backgroundColor: 'rgba(15,15,18,0.7)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: cam.scrim,
     borderRadius: radius.pill,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.accent,
+    height: 32,
   },
-  countdownWaiting: { borderColor: colors.muted },
-  countdownText: { color: colors.text, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(15,15,18,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.ember },
+  countdownText: { ...type.subhead, fontWeight: '600', color: cam.text, fontVariant: ['tabular-nums'] },
   controls: {
     position: 'absolute',
     bottom: 0,
@@ -479,21 +485,21 @@ const styles = StyleSheet.create({
   },
   sideSlot: { width: 60, alignItems: 'center' },
   shutter: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: colors.accent,
-    borderWidth: 5,
-    borderColor: 'rgba(255,255,255,0.85)',
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    borderWidth: 4,
+    borderColor: cam.text,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent },
+  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: cam.text },
   readyOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   hint: { position: 'absolute', bottom: 150, left: 0, right: 0, alignItems: 'center' },
   hintText: {
-    color: colors.text,
-    backgroundColor: 'rgba(15,15,18,0.7)',
+    ...type.footnote,
+    color: cam.text,
+    backgroundColor: cam.scrim,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radius.pill,
@@ -501,12 +507,12 @@ const styles = StyleSheet.create({
   },
   inset: {
     position: 'absolute',
-    left: 16,
+    left: space.lg,
     width: 110,
-    height: 150,
+    height: 147,
     borderRadius: radius.md,
     borderWidth: 2,
-    borderColor: colors.text,
+    borderColor: cam.text,
   },
   previewBar: {
     position: 'absolute',
@@ -517,7 +523,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
-    backgroundColor: 'rgba(15,15,18,0.75)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   previewButton: { flex: 1 },
 });

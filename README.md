@@ -23,7 +23,9 @@ The full design, team split, hour-by-hour build order and demo runbook are in [P
    - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (seed script only; Connect → Session pooler URI)
 4. `npm install` (an `.npmrc` already sets legacy-peer-deps; a transitive react-dom peer range conflicts with React 19.2)
 5. Seed the demo data: copy `scripts/seed/schedules.example.json` to `schedules.json`, put the team's real schedules in it, drop a few selfies into `scripts/seed/photos/` named `<first>-1.jpg`, `<first>-2.jpg`, …, then `npm run seed`. It prints the four logins.
-6. `npx expo start -c`, scan the QR code with Expo Go on each phone (everyone on the same Expo Go / SDK 57).
+6. `npx expo start -c` for local development (Expo Go on a phone on the same network, or press `w` for the browser).
+7. `npm run deploy:web` to publish the judge-facing web app to https://present.expo.app (needs `npx expo login`
+   once; see KNOWLEDGE.md). The web build is a static export that installs to a phone home screen like an app.
 
 ## Scripts
 
@@ -34,6 +36,9 @@ The full design, team split, hour-by-hour build order and demo runbook are in [P
 | `npm run sql:test` | runs the migrations in an in-process Postgres (PGlite) and exercises the whole skip moment, forfeit cap, excuses and RLS. No Supabase needed. |
 | `npm run seed` | wipe + rebuild the demo accounts, circle, schedules and two weeks of history |
 | `npm run verify` | checks the hosted project end to end: migrations, functions, RLS, triggers, bucket, storage policies, realtime publication, cron jobs. Run after every `supabase db push`. |
+| `npm run build:web` | static web export into `dist/` (every route pre-rendered, PWA manifest and icons included) |
+| `npm run deploy:web` | export + deploy to production on EAS Hosting (https://present.expo.app) |
+| `npm run deploy:web:preview` | export + deploy to a throwaway preview URL |
 
 Setup notes:
 - Hosted Supabase rejects made-up email domains on sign-up ("Email address is invalid"). Sign up in the app with a real address (andrew.cmu.edu is fine). The seed accounts (`…@present.demo`) are created through the admin API, which skips that check, and they sign in normally.
@@ -43,6 +48,7 @@ Setup notes:
 
 ```
 app/                 Expo Router screens (one folder per owner, see PLAN.md §10)
+  +html.tsx          web HTML shell: viewport, standalone-app meta tags, manifest, phone-width column on desktop
   (auth)/            sign-in, sign-up
   (tabs)/            Today (home), Circle (feed), You
   checkin/           camera + geofence + upload
@@ -55,6 +61,7 @@ components/          UI primitives, feed cards, occurrence card
 lib/                 supabase client, session + circle-state providers, api wrappers, geofence, notifications
 supabase/migrations/ schema, functions/triggers/RPCs, RLS, dev RPCs, cron/realtime/storage
 scripts/             seed.mts, sql-test.mts
+public/              copied into the web export as-is: manifest.json and home-screen icons
 ```
 
 ## How the pieces fit

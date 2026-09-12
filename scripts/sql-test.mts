@@ -1,7 +1,8 @@
 /* eslint-disable no-console */
-// Runs the migrations in an in-process Postgres (PGlite) with a stub `auth` schema and
-// exercises the whole skip moment: check-ins, skip detection, forfeits, streaks, excuses,
-// the daily cap, and RLS. No Supabase project needed.  `npm run sql:test`
+// Runs the v2 migrations in an in-process Postgres (PGlite) with a stub `auth` schema and
+// exercises the whole product: friends, calendar import, the on-time/late/miss window, excuses,
+// streaks, get_state, reactions, comments, photo expiry, the demo controls and RLS.
+// The clock is injectable (present.now), so this passes at any hour.  `npm run sql:test`
 import { PGlite } from '@electric-sql/pglite';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -41,6 +42,9 @@ async function scalar<T = any>(sql: string, params: unknown[] = []): Promise<T> 
 async function as(userId: string | null) {
   await q(`select set_config('request.jwt.claim.sub', $1, false)`, [userId ?? '']);
 }
+async function setClock(iso: string) {
+  await q(`select set_config('present.now', $1, false)`, [iso]);
+}
 async function expectError(p: Promise<unknown>, contains: string) {
   try {
     await p;
@@ -50,6 +54,7 @@ async function expectError(p: Promise<unknown>, contains: string) {
   }
   assert.fail(`expected an error containing "${contains}"`);
 }
+const ms = (iso: string) => new Date(iso).getTime();
 
 // ---------------------------------------------------------------- bootstrap: Supabase stubs
 
@@ -88,375 +93,475 @@ for (const f of files) {
   console.log('ok');
 }
 
+// Monday 14 Sep 2026, 09:00 in New York (13:00Z, 14:00 in London).
+const MON = '2026-09-14';
+const FRI = '2026-09-18';
+await setClock(`${MON}T13:00:00Z`);
+
 // ---------------------------------------------------------------- fixtures
 
-const names = ['Alex', 'Sam', 'Priya', 'Jordan', 'Outsider'];
-const ids: Record<string, string> = {};
-for (const n of names) {
-  const row = await one<{ id: string }>(
-    `insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id`,
-    [`${n.toLowerCase()}@present.demo`, JSON.stringify({ display_name: n })],
-  );
-  ids[n] = row.id;
+async function addUser(email: string, meta: Record<string, string>) {
+  return (await one<{ id: string }>(`insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id`, [email, JSON.stringify(meta)])).id;
 }
-const [alex, sam, priya, jordan, outsider] = names.map((n) => ids[n]);
+const alex = await addUser('alex@present.demo', { display_name: 'Alex Chen', username: 'alex', tz: 'America/New_York' });
+const sam = await addUser('sam@present.demo', { display_name: 'Sam Okafor', username: 'sam', tz: 'America/New_York' });
+const priya = await addUser('priya@present.demo', { display_name: 'Priya Natarajan', username: 'priya', tz: 'America/New_York' });
+const jordan = await addUser('jordan@present.demo', { display_name: 'Jordan Lee', username: 'jordan', tz: 'Europe/London' });
+const outsider = await addUser('out@present.demo', { display_name: 'Out Sider', username: 'outsider', tz: 'Mars/Phobos' });
+const alex2 = await addUser('alex.two@present.demo', { display_name: 'Alex Two', username: 'alex' });
 
-await q(`insert into public.buildings (code, name, lat, lng, radius_m) values
-  ('GHC', 'Gates & Hillman Centers', 40.4436, -79.9446, 110),
-  ('WEH', 'Wean Hall', 40.4427, -79.9457, 100)`);
-
-console.log('\nprofiles + circles');
-await test('auth.users insert creates profiles with display_name', async () => {
-  const n = await scalar<number>(`select count(*)::int from public.profiles`);
-  assert.equal(n, 5);
-  const p = await one(`select display_name from public.profiles where id = $1`, [alex]);
-  assert.equal(p.display_name, 'Alex');
-});
-
-let circleId = '';
-let inviteCode = '';
-await test('create_circle returns a 6-char code and posts member_joined', async () => {
-  await as(alex);
-  const c = await scalar<Row>(`select public.create_circle('Hack House', 'buys the circle boba')`);
-  circleId = c.id;
-  inviteCode = c.invite_code;
-  assert.match(inviteCode, /^[A-Z2-9]{6}$/);
-  assert.equal(await scalar(`select public.my_circle_id()`), circleId);
-  await expectError(q(`select public.create_circle('Again', 'x')`), 'already in a circle');
-});
-
-await test('join_circle by code; bad code and second circle are rejected', async () => {
-  for (const u of [sam, priya, jordan]) {
-    await as(u);
-    const c = await scalar<Row>(`select public.join_circle($1)`, [inviteCode.toLowerCase()]);
-    assert.equal(c.id, circleId);
-  }
-  await as(outsider);
-  await expectError(q(`select public.join_circle('ZZZZZZ')`), 'No circle with that code');
+console.log('\nprofiles');
+await test('auth.users insert creates profiles; usernames unique; bad tz falls back to UTC', async () => {
+  assert.equal(await scalar(`select count(*)::int from public.profiles`), 6);
+  assert.equal(await scalar(`select username from public.profiles where id = $1`, [alex]), 'alex');
+  assert.match(await scalar<string>(`select username from public.profiles where id = $1`, [alex2]), /^alex\d{3}$/);
+  assert.equal(await scalar(`select tz from public.profiles where id = $1`, [jordan]), 'Europe/London');
+  assert.equal(await scalar(`select tz from public.profiles where id = $1`, [outsider]), 'UTC');
   await as(sam);
-  await expectError(q(`select public.join_circle($1)`, [inviteCode]), 'already in a circle');
-  const n = await scalar<number>(`select count(*)::int from public.circle_members where circle_id = $1`, [circleId]);
-  assert.equal(n, 4);
+  assert.equal(await scalar(`select public.username_available('alex')`), false);
+  assert.equal(await scalar(`select public.username_available('Alex')`), false);
+  assert.equal(await scalar(`select public.username_available('newname')`), true);
+  assert.equal(await scalar(`select public.username_available('ab')`), false);
+  await as(alex);
+  assert.equal(await scalar(`select public.username_available('alex')`), true, 'my own username is available to me');
+  await as(sam);
+  await expectError(q(`select public.update_profile(null, 'alex')`), 'taken');
+  await expectError(q(`select public.update_profile(null, null, null, 'Mars/Phobos')`), 'Unknown time zone');
+  const p = await scalar<Row>(`select public.update_profile('Sam O.', null, null, null)`);
+  assert.equal(p.display_name, 'Sam O.');
+  await q(`select public.update_profile('Sam Okafor')`);
 });
 
-console.log('\nschedule + occurrence generation');
-await test('class insert trigger generates the next 7 days, skipping already-missed slots', async () => {
-  // Every day of the week, at 03:00-03:50 local: today's slot is long gone -> must not be created.
-  for (const u of [alex, sam, priya, jordan]) {
-    await as(u);
-    await q(
-      `insert into public.classes (user_id, course_code, name, building_code, days_of_week, start_time, end_time)
-       values ($1, '15-122', 'Imperative Computation', 'GHC', '{0,1,2,3,4,5,6}', '03:00', '03:50')`,
-      [u],
-    );
+console.log('\nfriends');
+await test('request, auto-accept on cross request, accept, decline, unfriend, visibility', async () => {
+  await as(alex);
+  assert.equal(await scalar(`select public.send_friend_request('sam')`), 'outgoing');
+  assert.equal(await scalar(`select public.send_friend_request('sam')`), 'outgoing');
+  await expectError(q(`select public.send_friend_request('nobody')`), 'No one');
+  await expectError(q(`select public.send_friend_request('alex')`), 'That is you');
+  await as(sam);
+  assert.equal(await scalar(`select public.send_friend_request('alex')`), 'friends', 'cross request accepts');
+  const ev = await one(`select payload from public.feed_events where type = 'friends' and actor_id = $1`, [sam]);
+  assert.equal(ev.payload.friend_id, alex);
+  assert.equal(ev.payload.friend_name, 'Alex Chen');
+
+  await as(alex);
+  assert.equal(await scalar(`select public.send_friend_request('priya')`), 'outgoing');
+  await as(priya);
+  await q(`select public.accept_friend_request($1)`, [alex]);
+  await expectError(q(`select public.accept_friend_request($1)`, [alex]), 'No request');
+
+  // everybody else pairs up
+  const pairs: [string, string, string, string][] = [
+    [alex, jordan, 'jordan', 'alex'],
+    [sam, priya, 'priya', 'sam'],
+    [sam, jordan, 'jordan', 'sam'],
+    [priya, jordan, 'jordan', 'priya'],
+  ];
+  for (const [a, b, bn, an] of pairs) {
+    await as(a);
+    await q(`select public.send_friend_request($1)`, [bn]);
+    await as(b);
+    assert.equal(await scalar(`select public.send_friend_request($1)`, [an]), 'friends');
   }
-  const today = await scalar<string>(`select public.ny_today()::text`);
-  const todays = await scalar<number>(`select count(*)::int from public.class_occurrences where date = $1::date`, [today]);
-  assert.equal(todays, 0, 'a 3am class added later in the day must not create an instant skip');
-  const total = await scalar<number>(`select count(*)::int from public.class_occurrences`);
-  assert.equal(total, 4 * 6, 'six future days per person');
-  const occ = await one(
-    `select starts_at, window_start, window_end, ends_at, skip_deadline from public.class_occurrences order by starts_at limit 1`,
+  await as(alex);
+  assert.equal(await scalar(`select count(*)::int from public.visible_users()`), 4);
+
+  // unfriend then re-add
+  assert.equal(await scalar(`select public.remove_friend($1)`, [jordan]), true);
+  assert.equal(await scalar(`select count(*)::int from public.visible_users()`), 3);
+  await q(`select public.send_friend_request('jordan')`);
+  await as(jordan);
+  assert.equal(await scalar(`select public.send_friend_request('alex')`), 'friends');
+  await as(alex);
+  assert.equal(await scalar(`select count(*)::int from public.visible_users()`), 4);
+
+  // incoming request from the outsider, declined
+  await as(outsider);
+  assert.equal(await scalar(`select public.send_friend_request('alex')`), 'outgoing');
+  await as(alex);
+  let s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.requests.incoming.length, 1);
+  assert.equal(s.requests.incoming[0].username, 'outsider');
+  await as(outsider);
+  s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.requests.outgoing[0].username, 'alex');
+  await as(alex);
+  assert.equal(await scalar(`select public.remove_friend($1)`, [outsider]), true);
+  s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.requests.incoming.length, 0);
+  assert.equal(s.friends.length, 3);
+  assert.equal(await scalar(`select count(*)::int from public.friendships where status = 'accepted'`), 6);
+});
+
+await test('search_users: prefix match, relation, excludes me, limit', async () => {
+  await as(alex);
+  const r = await scalar<Row[]>(`select public.search_users('sa')`);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].username, 'sam');
+  assert.equal(r[0].relation, 'friends');
+  const r2 = await scalar<Row[]>(`select public.search_users('out')`);
+  assert.equal(r2[0].relation, 'none');
+  const r3 = await scalar<Row[]>(`select public.search_users('alex')`);
+  assert.ok(r3.every((u: Row) => u.id !== alex));
+  assert.equal((await scalar<Row[]>(`select public.search_users('')`)).length, 0);
+});
+
+console.log('\nschedule import + occurrences');
+const sio = {
+  ics_uid: 'sio-15122',
+  course_code: '15-122',
+  name: 'Imperative Computation',
+  location_text: 'GHC 4401',
+  tz: 'America/New_York',
+  days_of_week: [1, 3, 5],
+  start_time: '09:30',
+  end_time: '10:20',
+  term_start: '2026-08-24',
+  term_end: '2026-12-11',
+  exdates: ['2026-09-16'],
+};
+async function occOf(user: string, date: string, course = '15-122') {
+  return await one(
+    `select o.*, o.date::text as date_str from public.class_occurrences o join public.classes c on c.id = o.class_id
+      where o.user_id = $1 and o.date = $2::date and c.course_code = $3 and not o.is_demo`,
+    [user, date, course],
   );
-  const s = new Date(occ.starts_at).getTime();
-  assert.equal(new Date(occ.window_start).getTime(), s - 10 * 60_000);
-  assert.equal(new Date(occ.window_end).getTime(), s + 15 * 60_000);
-  assert.equal(new Date(occ.skip_deadline).getTime(), new Date(occ.ends_at).getTime() + 10 * 60_000);
-});
-
-await test('ensure_occurrences is idempotent', async () => {
-  const tomorrow = await scalar<string>(`select (public.ny_today() + 1)::text`);
-  const n = await scalar<number>(`select public.ensure_occurrences($1::date, 1)`, [tomorrow]);
-  assert.equal(n, 0);
-});
-
-// Seed 3 days of clean history for all 4 members so streaks are non-trivial.
-for (const u of [alex, sam, priya, jordan]) {
-  const cls = await one(`select id from public.classes where user_id = $1`, [u]);
-  for (let d = 3; d >= 1; d--) {
-    await q(
-      `insert into public.class_occurrences
-         (class_id, user_id, building_code, date, starts_at, ends_at, window_start, window_end, skip_deadline, status)
-       select $1, $2, 'GHC', (public.ny_today() - $3::int),
-              s, s + interval '50 min', s - interval '10 min', s + interval '15 min', s + interval '60 min', 'checked_in'
-       from (select ((public.ny_today() - $3::int) + time '09:30') at time zone 'America/New_York' as s) t`,
-      [cls.id, u, d],
-    );
-  }
 }
 
-// Members joined just now, and the circle streak ignores history from before you joined
-// (by design), so back-date the memberships the way the seed script does.
-await q(`update public.circle_members set joined_at = now() - interval '30 days'`);
+await test('import_classes generates 7 days in each zone, honours exdates and windows', async () => {
+  for (const u of [alex, sam, priya]) {
+    await as(u);
+    const r = await scalar<Row>(`select public.import_classes($1::jsonb)`, [JSON.stringify([sio])]);
+    assert.deepEqual([r.inserted, r.updated, r.unchanged, r.class_count], [1, 0, 0, 1]);
+  }
+  await as(jordan);
+  const rj = await scalar<Row>(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, tz: 'Europe/London', start_time: '15:30', end_time: '16:20' }])]);
+  assert.equal(rj.inserted, 1);
 
-console.log('\nstreaks');
-await test('3 clean days -> personal 3, circle 3; today undecided', async () => {
-  assert.equal(await scalar(`select public.personal_streak($1)`, [alex]), 3);
-  assert.equal(await scalar(`select public.circle_streak($1)`, [circleId]), 3);
-});
-
-console.log('\nthe skip moment');
-await test('dev_start_class_now creates one demo occurrence per member', async () => {
+  // Mon 14 and Fri 18 (Wed 16 is an exdate); today's slot still ahead of its deadline
+  for (const u of [alex, sam, priya, jordan]) {
+    assert.equal(await scalar(`select count(*)::int from public.class_occurrences where user_id = $1`, [u]), 2, 'Mon + Fri');
+  }
+  const a = await occOf(alex, MON);
+  assert.equal(ms(a.starts_at), ms(`${MON}T13:30:00Z`), '09:30 New York');
+  assert.equal(ms(a.opens_at), ms(a.starts_at) - 2 * 60_000);
+  assert.equal(ms(a.on_time_until), ms(a.starts_at) + 10 * 60_000);
+  assert.equal(ms(a.deadline), ms(a.ends_at) + 10 * 60_000);
+  const j = await occOf(jordan, MON);
+  assert.equal(ms(j.starts_at), ms(`${MON}T14:30:00Z`), '15:30 London');
+  assert.equal(j.date_str, MON, 'local day in the class zone');
   await as(alex);
-  const n = await scalar<number>(`select public.dev_start_class_now('15-122', 3, 3)`);
-  assert.equal(n, 4);
-  await expectError(q(`select public.dev_start_class_now('99-999')`), 'Nobody in your circle');
-  // demo table still fine after the failed call? (exception rolled that statement back)
-  assert.equal(await scalar(`select count(*)::int from public.class_occurrences where is_demo`), 4);
+  assert.equal(await scalar(`select public.ensure_my_occurrences()`), 0, 'idempotent');
 });
 
+await test('re-import: unchanged is a no-op, a changed time regenerates, replace retires', async () => {
+  await as(alex);
+  const before = (await occOf(alex, MON)).id;
+  let r = await scalar<Row>(`select public.import_classes($1::jsonb)`, [JSON.stringify([sio])]);
+  assert.deepEqual([r.inserted, r.updated, r.unchanged], [0, 0, 1]);
+  assert.equal((await occOf(alex, MON)).id, before, 'occurrences untouched');
+
+  r = await scalar<Row>(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, start_time: '09:35' }])]);
+  assert.equal(r.updated, 1);
+  const moved = await occOf(alex, MON);
+  assert.notEqual(moved.id, before, 'regenerated');
+  assert.equal(ms(moved.starts_at), ms(`${MON}T13:35:00Z`));
+  await q(`select public.import_classes($1::jsonb)`, [JSON.stringify([sio])]);
+  assert.equal(ms((await occOf(alex, MON)).starts_at), ms(`${MON}T13:30:00Z`));
+
+  // a manual row (no ics_uid) is inserted as manual
+  r = await scalar<Row>(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, ics_uid: null, course_code: 'MANUAL' }])]);
+  assert.equal(r.inserted, 1);
+  assert.equal(await scalar(`select source from public.classes where user_id = $1 and course_code = 'MANUAL'`, [alex]), 'manual');
+  await q(`delete from public.classes where user_id = $1 and course_code = 'MANUAL'`, [alex]);
+
+  // replace: priya swaps 15-122 for 21-241, then swaps back
+  await as(priya);
+  r = await scalar<Row>(`select public.import_classes($1::jsonb, true)`, [
+    JSON.stringify([{ ...sio, ics_uid: 'sio-21241', course_code: '21-241', days_of_week: [2, 4], start_time: '11:00', end_time: '11:50', exdates: [] }]),
+  ]);
+  assert.deepEqual([r.inserted, r.retired, r.class_count], [1, 1, 1]);
+  assert.equal(await scalar(`select count(*)::int from public.class_occurrences o join public.classes c on c.id = o.class_id where o.user_id = $1 and c.course_code = '15-122' and o.status = 'pending'`, [priya]), 0, 'retired class loses its future occurrences');
+  r = await scalar<Row>(`select public.import_classes($1::jsonb, true)`, [JSON.stringify([sio])]);
+  assert.deepEqual([r.inserted, r.updated, r.retired], [0, 1, 1]);
+  assert.equal(await scalar(`select count(*)::int from public.class_occurrences where user_id = $1 and status = 'pending'`, [priya]), 2, 'Mon + Fri are back');
+
+  await expectError(q(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, course_code: '' }])]), 'course code');
+  await expectError(q(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, days_of_week: [] }])]), 'no days');
+  await expectError(q(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, end_time: '09:00' }])]), 'ends before');
+});
+
+console.log('\nthe window');
+await test('create_post: not yet, on time (pins the room), double, late, wrong user, too late', async () => {
+  const a = await occOf(alex, MON);
+  await as(alex);
+  await expectError(q(`select public.create_post($1, 'alex/x.jpg')`, [a.id]), 'Not yet');
+
+  await setClock(`${MON}T13:29:00Z`); // 09:29, opens 09:28
+  const r = await scalar<Row>(`select public.create_post($1, 'alex/x.jpg', 'alex/x-back.jpg', '  front row  ', 2, 40.4436, -79.9446, 20)`, [a.id]);
+  assert.equal(r.late, false);
+  assert.equal(r.location_verified, true, 'first on-time post pins the room and counts as nearby');
+  assert.equal(r.streak_after, 1, 'Monday is complete');
+  const cls = await one(`select lat, lng, radius_m from public.classes where user_id = $1`, [alex]);
+  assert.equal(cls.radius_m, 40, 'max(40, 1.5 x 20)');
+  const post = await one(`select * from public.posts where user_id = $1`, [alex]);
+  assert.equal(post.caption, 'front row');
+  assert.equal(post.retake_count, 2);
+  assert.equal(ms(post.expires_at), ms(`${MON}T13:29:00Z`) + 24 * 3_600_000);
+  const occ = await occOf(alex, MON);
+  assert.equal(occ.status, 'posted');
+  assert.equal(occ.late, false);
+  const ev = await one(`select payload from public.feed_events where type = 'post' and actor_id = $1`, [alex]);
+  assert.equal(ev.payload.username, 'alex');
+  assert.equal(ev.payload.course_code, '15-122');
+  assert.equal(ev.payload.location_text, 'GHC 4401');
+  assert.equal(ev.payload.streak_after, 1);
+  await expectError(q(`select public.create_post($1, 'alex/y.jpg')`, [a.id]), 'already posted');
+
+  const s = await occOf(sam, MON);
+  await as(sam);
+  await setClock(`${MON}T13:41:00Z`); // 09:41 > on_time_until 09:40
+  const rs = await scalar<Row>(`select public.create_post($1, 'sam/x.jpg')`, [s.id]);
+  assert.equal(rs.late, true);
+  assert.equal((await occOf(sam, MON)).late, true);
+  assert.equal(await scalar(`select public.personal_streak($1)`, [sam]), 0, 'a late-only day neither extends nor breaks');
+
+  await as(priya);
+  await expectError(q(`select public.create_post($1, 'p.jpg')`, [s.id]), 'not your class');
+  await expectError(q(`select public.create_post($1, '')`, [(await occOf(priya, MON)).id]), 'photo is required');
+
+  await as(jordan);
+  await setClock(`${MON}T14:29:00Z`); // 15:29 London
+  const rj = await scalar<Row>(`select public.create_post($1, 'jordan/x.jpg')`, [(await occOf(jordan, MON)).id]);
+  assert.equal(rj.late, false);
+  assert.equal(rj.streak_after, 1);
+
+  await as(priya);
+  await setClock(`${MON}T14:31:00Z`); // 10:31 > deadline 10:30
+  await expectError(q(`select public.create_post($1, 'p.jpg')`, [(await occOf(priya, MON)).id]), 'Too late');
+});
+
+let priyaMissId = '';
+await test('detect_misses flips the pending row past its deadline once, with streak_before', async () => {
+  assert.equal(await scalar(`select public.detect_misses()`), 1);
+  assert.equal(await scalar(`select public.detect_misses()`), 0, 'idempotent');
+  const occ = await occOf(priya, MON);
+  assert.equal(occ.status, 'missed');
+  const miss = await one(`select * from public.misses where user_id = $1`, [priya]);
+  priyaMissId = miss.id;
+  assert.equal(miss.excused, false);
+  const ev = await one(`select payload from public.feed_events where type = 'miss' and actor_id = $1`, [priya]);
+  assert.equal(ev.payload.streak_before, 0);
+  assert.equal(ev.payload.username, 'priya');
+  assert.equal(await scalar(`select public.personal_streak($1)`, [priya]), 0);
+  await as(priya);
+  const s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.my_unexplained_misses.length, 1);
+  assert.equal(s.my_unexplained_misses[0].id, priyaMissId);
+});
+
+console.log('\nnearby + streaks');
+await test('Friday: within the pin is nearby, outside is not, unpinned first on-time post pins', async () => {
+  await setClock(`${FRI}T13:29:00Z`);
+  await as(alex);
+  let r = await scalar<Row>(`select public.create_post($1, 'alex/f.jpg', null, null, 0, 40.44365, -79.9446, 30)`, [(await occOf(alex, FRI)).id]);
+  assert.equal(r.location_verified, true, '5 m from the pin');
+  assert.equal(r.streak_after, 2);
+
+  await q(`update public.classes set lat = 40.4436, lng = -79.9446, radius_m = 40 where user_id = $1`, [priya]);
+  await as(priya);
+  r = await scalar<Row>(`select public.create_post($1, 'priya/f.jpg', null, null, 0, 40.45, -79.95, 20)`, [(await occOf(priya, FRI)).id]);
+  assert.equal(r.location_verified, false, '800 m away');
+  assert.equal(r.late, false);
+
+  await as(sam);
+  r = await scalar<Row>(`select public.create_post($1, 'sam/f.jpg')`, [(await occOf(sam, FRI)).id]);
+  assert.equal(r.location_verified, false, 'no fix, no badge');
+  assert.equal(await scalar(`select lat from public.classes where user_id = $1`, [sam]), null, 'no fix, no pin');
+});
+
+await test('streaks: on-time days count, misses break, excuses restore; best_streak', async () => {
+  assert.equal(await scalar(`select public.personal_streak($1)`, [alex]), 2);
+  assert.equal(await scalar(`select public.best_streak($1)`, [alex]), 2);
+  assert.equal(await scalar(`select public.personal_streak($1)`, [sam]), 1, 'Fri on time; Mon late-only ignored');
+  assert.equal(await scalar(`select public.personal_streak($1)`, [priya]), 1, 'Fri complete, Mon missed');
+  await as(priya);
+  await q(`select public.excuse_miss($1)`, [priyaMissId]);
+  assert.equal((await occOf(priya, MON)).status, 'excused');
+  assert.equal(await scalar(`select public.personal_streak($1)`, [priya]), 2, 'excused Mon counts');
+  const ev = await one(`select payload from public.feed_events where type = 'excused' and actor_id = $1`, [priya]);
+  assert.equal(ev.payload.pre_emptive, false);
+  await expectError(q(`select public.excuse_miss($1)`, [priyaMissId]), 'already excused');
+  const s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.my_unexplained_misses.length, 0, 'an excused miss needs no explanation');
+});
+
+let jordanMissId = '';
+await test('explanation becomes the first comment under the miss; only the misser can', async () => {
+  await setClock(`${FRI}T15:31:00Z`); // Jordan's 15:30 London class: deadline 16:30 London = 15:30Z
+  assert.equal(await scalar(`select public.detect_misses()`), 1);
+  jordanMissId = (await one(`select id from public.misses where user_id = $1`, [jordan])).id;
+  await as(alex);
+  await expectError(q(`select public.explain_miss($1, 'nope')`, [jordanMissId]), 'Miss not found');
+  await as(jordan);
+  await expectError(q(`select public.explain_miss($1, '   ')`, [jordanMissId]), 'Say something');
+  await q(`select public.explain_miss($1, 'overslept')`, [jordanMissId]);
+  const missEv = await one(`select id from public.feed_events where type = 'miss' and ref_id = $1`, [jordanMissId]);
+  const c = await one(`select * from public.comments where feed_event_id = $1`, [missEv.id]);
+  assert.equal(c.user_id, jordan);
+  assert.equal(c.text, 'overslept');
+  assert.equal(await scalar(`select count(*)::int from public.feed_events where type = 'explanation'`), 0, 'no separate event');
+  const s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.my_unexplained_misses.length, 0);
+});
+
+await test('pre-emptive excuse on a pending class', async () => {
+  await as(alex);
+  await q(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, ics_uid: 'sio-sat', course_code: '99-100', days_of_week: [6], start_time: '10:00', end_time: '10:50', exdates: [] }])]);
+  const sat = await occOf(alex, '2026-09-19', '99-100');
+  await q(`select public.excuse_occurrence($1)`, [sat.id]);
+  assert.equal((await occOf(alex, '2026-09-19', '99-100')).status, 'excused');
+  const m = await one(`select excused from public.misses where occurrence_id = $1`, [sat.id]);
+  assert.equal(m.excused, true);
+  const ev = await one(`select payload from public.feed_events where type = 'excused' and actor_id = $1`, [alex]);
+  assert.equal(ev.payload.pre_emptive, true);
+  await expectError(q(`select public.excuse_occurrence($1)`, [sat.id]), 'already excused');
+  await as(sam);
+  await expectError(q(`select public.excuse_occurrence($1)`, [sat.id]), 'not your class');
+});
+
+console.log('\nstate, reactions, comments');
+await test('get_state: me, leaderboard order, friends today, feed, comments', async () => {
+  await as(alex);
+  const s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.me.username, 'alex');
+  assert.equal(s.me.streak, 3, 'Mon, Fri on time + Sat excused');
+  assert.equal(s.me.best_streak, 3);
+  assert.equal(s.me.posted_today, true);
+  assert.equal(s.me.has_class_today, true);
+  assert.equal(s.me.class_count, 2);
+  assert.equal(s.me.posts_count, 2);
+  assert.equal(s.today, FRI);
+  assert.deepEqual(
+    s.friends.map((f: Row) => f.username),
+    ['priya', 'sam', 'jordan'],
+    'by streak desc (2, 1, 0)',
+  );
+  assert.equal(s.friends[0].posted_today, true);
+  assert.equal(s.today_occurrences.filter((o: Row) => o.user_id !== alex).length, 3, "friends' Friday classes");
+  const mine = s.today_occurrences.find((o: Row) => o.user_id === alex);
+  assert.equal(mine.post.photo_path, 'alex/f.jpg');
+  assert.equal(mine.location_text, 'GHC 4401');
+  assert.equal(s.feed[0].type, 'excused');
+  assert.ok(s.feed.some((e: Row) => e.type === 'friends'));
+  assert.equal(s.comments.length, 1, "jordan's explanation");
+  assert.equal(s.comments[0].username, 'jordan');
+  await as(outsider);
+  const o = await scalar<Row>(`select public.get_state()`);
+  assert.equal(o.friends.length, 0);
+  assert.equal(o.feed.length, 0);
+  assert.equal(o.me.class_count, 0);
+});
+
+await test('reactions toggle; comments post; outsiders are refused', async () => {
+  const ev = await one(`select id from public.feed_events where type = 'post' and actor_id = $1 order by created_at desc limit 1`, [alex]);
+  await as(sam);
+  assert.equal(await scalar(`select public.toggle_reaction($1, '🔥')`, [ev.id]), true);
+  assert.equal(await scalar(`select public.toggle_reaction($1, '🔥')`, [ev.id]), false);
+  await expectError(q(`select public.toggle_reaction($1, '')`, [ev.id]), 'Bad emoji');
+  await as(outsider);
+  await expectError(q(`select public.toggle_reaction($1, '🔥')`, [ev.id]), 'cannot see');
+  await expectError(q(`select public.add_comment($1, 'hi')`, [ev.id]), 'cannot see');
+  await as(priya);
+  const c = await scalar<Row>(`select public.add_comment($1, '  nice  ')`, [ev.id]);
+  assert.equal(c.text, 'nice');
+  assert.equal(c.username, 'priya');
+  await expectError(q(`select public.add_comment($1, ' ')`, [ev.id]), 'Say something');
+  await as(alex);
+  const s = await scalar<Row>(`select public.get_state()`);
+  assert.equal(s.comments.filter((x: Row) => x.feed_event_id === ev.id).length, 1);
+});
+
+await test('memories and photo expiry', async () => {
+  await as(alex);
+  assert.equal((await scalar<Row[]>(`select public.get_memories()`)).length, 2);
+  await setClock('2026-10-20T13:00:00Z');
+  const n = await scalar<number>(`select public.expire_photos()`);
+  assert.ok(n >= 5, `expired ${n}`);
+  assert.equal(await scalar(`select count(*)::int from public.posts where photo_path is not null`), 0);
+  assert.equal((await scalar<Row[]>(`select public.get_memories()`)).length, 0);
+  await setClock(`${FRI}T17:00:00Z`);
+});
+
+console.log('\ndemo controls');
 async function demoOcc(u: string) {
   return (await one(`select id from public.class_occurrences where is_demo and user_id = $1`, [u])).id as string;
 }
+await test('start class now -> on time, late, replay, miss, explanation, reset', async () => {
+  await as(alex);
+  assert.equal(await scalar(`select public.dev_start_class_now('15-122', 2, 2)`), 4);
+  await expectError(q(`select public.dev_start_class_now('99-999')`), 'Nobody has');
+  assert.equal(await scalar(`select count(*)::int from public.class_occurrences where is_demo`), 4);
 
-await test('check-in flips status, posts a checkin event with streak_after', async () => {
-  for (const u of [alex, sam, priya]) {
-    await as(u);
-    await q(`insert into public.checkins (occurrence_id, user_id, photo_path, in_geofence) values ($1, $2, $3, true)`, [
-      await demoOcc(u),
-      u,
-      `${u}/x.jpg`,
-    ]);
-  }
-  const st = await scalar<string>(`select status::text from public.class_occurrences where id = $1`, [await demoOcc(alex)]);
-  assert.equal(st, 'checked_in');
-  const ev = await one(`select payload from public.feed_events where type = 'checkin' and actor_id = $1`, [alex]);
-  assert.equal(ev.payload.course_code, '15-122');
-  assert.equal(ev.payload.personal_streak_after, 4, 'today is now complete for Alex');
-  assert.equal(ev.payload.display_name, 'Alex');
-});
-
-await test('check-in guards: wrong user, double check-in', async () => {
   await as(sam);
-  await expectError(
-    q(`insert into public.checkins (occurrence_id, user_id) values ($1, $2)`, [await demoOcc(jordan), sam]),
-    'not your class',
-  );
+  let r = await scalar<Row>(`select public.create_post($1, 'sam/d.jpg')`, [await demoOcc(sam)]);
+  assert.equal(r.late, false);
+
   await as(alex);
-  await expectError(
-    q(`insert into public.checkins (occurrence_id, user_id) values ($1, $2)`, [await demoOcc(alex), alex]),
-    'already checked in',
-  );
-});
+  assert.equal(await scalar(`select public.dev_end_on_time_now()`), 3);
+  await as(priya);
+  r = await scalar<Row>(`select public.create_post($1, 'priya/d.jpg')`, [await demoOcc(priya)]);
+  assert.equal(r.late, true);
 
-await test('dev_end_window_now -> Jordan skipped, forfeit owed, streaks die, snapshots kept', async () => {
   await as(alex);
-  const n = await scalar<number>(`select public.dev_end_window_now()`);
-  assert.equal(n, 1);
-  const st = await scalar<string>(`select status::text from public.class_occurrences where id = $1`, [await demoOcc(jordan)]);
-  assert.equal(st, 'skipped');
-  const skip = await one(`select * from public.skips where user_id = $1`, [jordan]);
-  assert.equal(skip.excused, false);
-  const f = await one(`select * from public.forfeits where owed_by = $1`, [jordan]);
-  assert.equal(f.status, 'owed');
-  assert.equal(f.description, 'buys the circle boba');
-  const ev = await one(`select payload from public.feed_events where type = 'skip' and actor_id = $1`, [jordan]);
-  assert.equal(ev.payload.circle_streak_before, 3);
-  assert.equal(ev.payload.personal_streak_before, 3);
-  assert.equal(await scalar(`select count(*)::int from public.feed_events where type = 'forfeit_owed'`), 1);
-  assert.equal(await scalar(`select public.circle_streak($1)`, [circleId]), 0);
-  assert.equal(await scalar(`select public.personal_streak($1)`, [jordan]), 0);
-  assert.equal(await scalar(`select public.personal_streak($1)`, [alex]), 4);
-  // idempotent: running detection again does nothing
-  assert.equal(await scalar(`select public.detect_skips()`), 0);
-});
+  r = await scalar<Row>(`select public.dev_replay_post($1)`, [jordan]);
+  assert.equal(r.late, true);
+  assert.equal(await scalar(`select photo_path from public.posts where occurrence_id = $1`, [await demoOcc(jordan)]), `seed/${jordan}/1.jpg`);
+  await expectError(q(`select public.dev_replay_post($1)`, [outsider]), 'not a friend');
 
-await test('check-in after the window closed is rejected', async () => {
-  await as(jordan);
-  await expectError(
-    q(`insert into public.checkins (occurrence_id, user_id) values ($1, $2)`, [await demoOcc(jordan), jordan]),
-    'already skipped',
-  );
-});
+  assert.equal(await scalar(`select public.dev_end_window_now()`), 1, 'Alex never posted');
+  assert.equal(await scalar(`select status::text from public.class_occurrences where id = $1`, [await demoOcc(alex)]), 'missed');
+  const ev = await one(`select payload from public.feed_events where type = 'miss' and actor_id = $1 order by created_at desc limit 1`, [alex]);
+  assert.equal(ev.payload.streak_before, 2);
+  await q(`select public.dev_replay_explanation('phone died')`);
+  const missEv = await one(`select id from public.feed_events where type = 'miss' and actor_id = $1 order by created_at desc limit 1`, [alex]);
+  assert.equal(await scalar(`select text from public.comments where feed_event_id = $1`, [missEv.id]), 'phone died');
 
-await test('get_circle_state shows my_unexplained_skips for Jordan only', async () => {
-  await as(jordan);
-  const s = await scalar<Row>(`select public.get_circle_state()`);
-  assert.equal(s.my_unexplained_skips.length, 1);
-  assert.equal(s.my_unexplained_skips[0].course_code, '15-122');
-  assert.equal(s.circle_streak, 0);
-  assert.equal(s.members.length, 4);
-  assert.equal(s.today.filter((o: Row) => o.is_demo).length, 4);
-  assert.equal(s.forfeits.length, 1);
-  assert.equal(s.forfeits[0].owed_by_name, 'Jordan');
-  assert.equal(s.my_class_count, 1);
-  await as(alex);
-  const s2 = await scalar<Row>(`select public.get_circle_state()`);
-  assert.equal(s2.my_unexplained_skips.length, 0);
-  assert.ok(s2.feed.length >= 6);
-  assert.equal(s2.feed[0].type, 'forfeit_owed');
-});
-
-await test('explain_skip posts an explanation event; only the skipper can', async () => {
-  const skip = await one(`select id from public.skips where user_id = $1`, [jordan]);
-  await as(alex);
-  await expectError(q(`select public.explain_skip($1, 'nope')`, [skip.id]), 'Skip not found');
-  await as(jordan);
-  await expectError(q(`select public.explain_skip($1, '   ')`, [skip.id]), 'Say something');
-  await q(`select public.explain_skip($1, 'slept in')`, [skip.id]);
-  const ev = await one(`select payload from public.feed_events where type = 'explanation'`);
-  assert.equal(ev.payload.text, 'slept in');
-  await as(jordan);
-  const s = await scalar<Row>(`select public.get_circle_state()`);
-  assert.equal(s.my_unexplained_skips.length, 0);
-});
-
-await test('mark_forfeit_paid: not by the owner, only once, posts forfeit_paid', async () => {
-  const f = await one(`select id from public.forfeits where owed_by = $1`, [jordan]);
-  await as(jordan);
-  await expectError(q(`select public.mark_forfeit_paid($1)`, [f.id]), "can't clear your own");
-  await as(outsider);
-  await expectError(q(`select public.mark_forfeit_paid($1)`, [f.id]), 'not your circle');
-  await as(sam);
-  await q(`select public.mark_forfeit_paid($1)`, [f.id]);
-  const row = await one(`select status, marked_paid_by from public.forfeits where id = $1`, [f.id]);
-  assert.equal(row.status, 'paid');
-  assert.equal(row.marked_paid_by, sam);
-  const ev = await one(`select payload from public.feed_events where type = 'forfeit_paid'`);
-  assert.equal(ev.payload.paid_by_name, 'Sam');
-  assert.equal(ev.payload.display_name, 'Jordan');
-  await expectError(q(`select public.mark_forfeit_paid($1)`, [f.id]), 'already paid');
-});
-
-await test('reactions toggle on and off', async () => {
-  const ev = await one(`select id from public.feed_events where type = 'skip'`);
-  await as(sam);
-  assert.equal(await scalar(`select public.toggle_reaction($1, '💀')`, [ev.id]), true);
-  assert.equal(await scalar(`select public.toggle_reaction($1, '💀')`, [ev.id]), false);
-  await as(outsider);
-  await expectError(q(`select public.toggle_reaction($1, '🔥')`, [ev.id]), 'not your circle');
-});
-
-console.log('\nexcuses');
-await test('after-the-fact excuse voids the forfeit and restores the streaks', async () => {
-  await as(alex);
-  await q(`select public.dev_start_class_now('15-122', 3, 3)`); // resets the previous demo
-  for (const u of [alex, sam, priya]) {
-    await as(u);
-    await q(`insert into public.checkins (occurrence_id, user_id) values ($1, $2)`, [await demoOcc(u), u]);
-  }
-  await as(alex);
-  assert.equal(await scalar(`select public.dev_end_window_now()`), 1);
-  assert.equal(await scalar(`select public.circle_streak($1)`, [circleId]), 0);
-  const skip = await one(`select id from public.skips where user_id = $1`, [jordan]);
-  await as(jordan);
-  await q(`select public.excuse_skip($1)`, [skip.id]);
-  assert.equal(await scalar(`select status::text from public.class_occurrences where id = $1`, [await demoOcc(jordan)]), 'excused');
-  assert.equal(await scalar(`select status::text from public.forfeits where skip_id = $1`, [skip.id]), 'voided');
-  assert.equal(await scalar(`select public.circle_streak($1)`, [circleId]), 4, 'today complete for everyone again');
-  assert.equal(await scalar(`select public.personal_streak($1)`, [jordan]), 4);
-  const ev = await one(`select payload from public.feed_events where type = 'excused'`);
-  assert.equal(ev.payload.pre_emptive, false);
-  await expectError(q(`select public.excuse_skip($1)`, [skip.id]), 'already excused');
-});
-
-await test('pre-emptive excuse from Home: no forfeit, streak intact, visible in feed', async () => {
-  await as(alex);
-  await q(`select public.dev_start_class_now('15-122', 3, 3)`);
-  await as(jordan);
-  await q(`select public.excuse_occurrence($1)`, [await demoOcc(jordan)]);
-  for (const u of [alex, sam, priya]) {
-    await as(u);
-    await q(`insert into public.checkins (occurrence_id, user_id) values ($1, $2)`, [await demoOcc(u), u]);
-  }
-  await as(alex);
-  assert.equal(await scalar(`select public.dev_end_window_now()`), 0);
-  assert.equal(await scalar(`select count(*)::int from public.forfeits where owed_by = $1 and status <> 'voided'`, [jordan]), 0);
-  assert.equal(await scalar(`select public.circle_streak($1)`, [circleId]), 4);
-  const ev = await one(`select payload from public.feed_events where type = 'excused' and (payload->>'pre_emptive')::boolean`);
-  assert.equal(ev.payload.display_name, 'Jordan');
-  await as(jordan);
-  await expectError(q(`select public.excuse_occurrence($1)`, [await demoOcc(jordan)]), 'already excused');
-});
-
-console.log('\ncaps and batches');
-await test('one forfeit per person per day, even with two skips', async () => {
-  await as(alex);
-  await q(`select public.dev_start_class_now('15-122', 3, 3)`);
-  await q(`select public.dev_end_window_now()`); // everyone skips: 4 skips, 4 forfeits
-  assert.equal(await scalar(`select count(*)::int from public.forfeits where status = 'owed'`), 4);
-  // a second, already-missed demo occurrence for Jordan today
-  const cls = await one(`select id from public.classes where user_id = $1`, [jordan]);
-  await q(
-    `insert into public.class_occurrences
-       (class_id, user_id, building_code, date, starts_at, ends_at, window_start, window_end, skip_deadline, is_demo)
-     values ($1, $2, 'GHC', public.ny_today(), now() - interval '2 hour', now() - interval '70 min',
-             now() - interval '130 min', now() - interval '105 min', now() - interval '60 min', true)`,
-    [cls.id, jordan],
-  );
-  assert.equal(await scalar(`select public.detect_skips()`), 1);
-  assert.equal(await scalar(`select count(*)::int from public.skips where user_id = $1`, [jordan]), 2);
-  assert.equal(await scalar(`select count(*)::int from public.forfeits where owed_by = $1 and status = 'owed'`, [jordan]), 1);
-});
-
-await test('two members skipped in one batch both see the same circle_streak_before', async () => {
-  const rows = await q(
-    `select payload->>'circle_streak_before' as before from public.feed_events
-      where type = 'skip' and occurrence_id in (select id from public.class_occurrences where is_demo)
-      order by created_at`,
-  );
-  assert.ok(rows.length >= 4);
-  const firstFour = rows.slice(0, 4).map((r) => r.before);
-  assert.deepEqual(firstFour, ['3', '3', '3', '3'], 'demo reset made today undecided again; history is 3 days');
-});
-
-await test('dev_reset_demo cascades checkins, skips, forfeits and feed events', async () => {
-  await as(alex);
   await q(`select public.dev_reset_demo()`);
   assert.equal(await scalar(`select count(*)::int from public.class_occurrences where is_demo`), 0);
-  assert.equal(await scalar(`select count(*)::int from public.skips`), 0);
-  assert.equal(await scalar(`select count(*)::int from public.forfeits`), 0);
-  assert.equal(await scalar(`select count(*)::int from public.feed_events where type <> 'member_joined'`), 0);
-  assert.equal(await scalar(`select public.circle_streak($1)`, [circleId]), 3, 'history intact');
-});
-
-console.log('\nreplay helpers');
-await test('replay checkin / explanation / pay forfeit drive the whole moment server-side', async () => {
-  await as(alex);
-  await q(`select public.dev_start_class_now('15-122', 3, 3)`);
-  await q(`select public.dev_replay_checkin($1)`, [sam]);
-  await q(`select public.dev_replay_checkin($1)`, [priya]);
-  await q(`insert into public.checkins (occurrence_id, user_id) values ($1, $2)`, [await demoOcc(alex), alex]);
-  const c = await one(`select photo_path from public.checkins where user_id = $1`, [sam]);
-  assert.equal(c.photo_path, `seed/${sam}/1.jpg`);
-  assert.equal(await scalar(`select public.dev_end_window_now()`), 1);
-  await q(`select public.dev_replay_explanation('phone died')`);
-  assert.equal(await scalar(`select explanation from public.skips where user_id = $1`, [jordan]), 'phone died');
-  await q(`select public.dev_replay_pay_forfeit()`);
-  const f = await one(`select status, marked_paid_by from public.forfeits where owed_by = $1`, [jordan]);
-  assert.equal(f.status, 'paid');
-  assert.notEqual(f.marked_paid_by, jordan);
+  assert.equal(await scalar(`select count(*)::int from public.posts where photo_path like '%/d.jpg'`), 0);
+  assert.equal(await scalar(`select count(*)::int from public.feed_events where occurrence_id is not null and occurrence_id not in (select id from public.class_occurrences)`), 0);
+  assert.equal(await scalar(`select public.personal_streak($1)`, [alex]), 3, 'history intact');
 });
 
 console.log('\nrow level security');
-await test('outsider sees nothing; members see their circle; nobody can insert feed events', async () => {
+await test('outsider sees nothing; friends see each other; nobody writes feed, posts or friendships', async () => {
+  const visibleClasses = await scalar<number>(`select count(*)::int from public.classes where user_id in ($1, $2, $3, $4)`, [alex, sam, priya, jordan]);
   await q(`set role authenticated`);
   try {
     await as(outsider);
     assert.equal(await scalar(`select count(*)::int from public.feed_events`), 0);
-    assert.equal(await scalar(`select count(*)::int from public.circles`), 0);
+    assert.equal(await scalar(`select count(*)::int from public.posts`), 0);
     assert.equal(await scalar(`select count(*)::int from public.class_occurrences`), 0);
+    assert.equal(await scalar(`select count(*)::int from public.classes`), 0);
+    assert.equal(await scalar(`select count(*)::int from public.comments`), 0);
+    assert.ok((await scalar<number>(`select count(*)::int from public.profiles`)) >= 6, 'profiles are searchable');
     await as(sam);
     assert.ok((await scalar<number>(`select count(*)::int from public.feed_events`)) > 0);
-    assert.equal(await scalar(`select count(*)::int from public.circles`), 1);
-    assert.equal(await scalar(`select count(*)::int from public.classes`), 4, 'sees circle-mates classes');
-    await expectError(
-      q(`insert into public.feed_events (circle_id, actor_id, type) values ($1, $2, 'member_joined')`, [circleId, sam]),
-      'row-level security',
-    );
-    await expectError(
-      q(`update public.forfeits set status = 'paid'`),
-      'row-level security',
-    ).catch(async () => {
-      // an UPDATE with no matching policy silently affects 0 rows on some versions; verify nothing changed
-      const n = await scalar<number>(`select count(*)::int from public.forfeits where status = 'paid' and marked_paid_by is null`);
-      assert.equal(n, 0);
-    });
-    // RPCs still work through security definer
-    const s = await scalar<Row>(`select public.get_circle_state()`);
-    assert.equal(s.circle.id, circleId);
+    assert.equal(await scalar(`select count(*)::int from public.classes`), visibleClasses, "friends' classes");
+    assert.equal(await scalar(`select count(*)::int from public.friendships`), 3, 'my own edges only');
+    await expectError(q(`insert into public.feed_events (actor_id, type) values ($1, 'friends')`, [sam]), 'row-level security');
+    await expectError(q(`insert into public.posts (occurrence_id, user_id, expires_at, memory_until) values (gen_random_uuid(), $1, now(), now())`, [sam]), 'row-level security');
+    await expectError(q(`insert into public.friendships (user_lo, user_hi, requested_by) values ($1, $2, $1)`, [sam < outsider ? sam : outsider, sam < outsider ? outsider : sam]), 'row-level security');
+    await q(`update public.profiles set display_name = 'hacked' where id = $1`, [alex]);
+    assert.notEqual(await scalar(`select display_name from public.profiles where id = $1`, [alex]), 'hacked', 'update on another profile affects nothing');
+    const s = await scalar<Row>(`select public.get_state()`);
+    assert.equal(s.me.username, 'sam');
+    assert.equal(s.friends.length, 3);
   } finally {
     await q(`reset role`);
+    await q(`update public.profiles set display_name = 'Alex Chen' where id = $1`, [alex]);
   }
 });
 

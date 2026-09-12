@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, ErrorText, Muted, Pill, Row } from '@/components/ui';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { AvatarStack, Badge, Button, Card, ErrorText, Row, Txt } from '@/components/ui';
 import { excuseOccurrence } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { useNow } from '@/lib/clock';
@@ -10,26 +10,14 @@ import { colors, space } from '@/lib/theme';
 import { fmtCountdown, fmtTime } from '@/lib/time';
 import type { Occurrence } from '@/lib/types';
 
-export function OccurrenceCard({
-  occurrence: o,
-  othersThere,
-  total,
-}: {
-  occurrence: Occurrence;
-  othersThere: number;
-  total: number;
-}) {
-  const now = useNow().getTime();
-  const router = useRouter();
+export function isWindowOpen(o: Occurrence, nowMs: number) {
+  return o.status === 'pending' && nowMs >= new Date(o.window_start).getTime() && nowMs <= new Date(o.window_end).getTime();
+}
+
+function useExcuse(o: Occurrence) {
   const { refresh } = useCircleState();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const windowStart = new Date(o.window_start).getTime();
-  const windowEnd = new Date(o.window_end).getTime();
-  const pending = o.status === 'pending';
-  const open = pending && now >= windowStart && now <= windowEnd;
-
   async function onExcuse() {
     setBusy(true);
     setError(null);
@@ -42,56 +30,109 @@ export function OccurrenceCard({
       setBusy(false);
     }
   }
+  return { busy, error, onExcuse };
+}
 
-  let status: React.ReactNode;
-  if (o.status === 'checked_in') status = <Pill label="Checked in ✓" color={colors.green} />;
-  else if (o.status === 'skipped') status = <Pill label="Skipped" color={colors.red} />;
-  else if (o.status === 'excused') status = <Pill label="Excused" color={colors.blue} />;
-  else if (now < windowStart) status = <Muted>Opens in {fmtCountdown(windowStart - now)}</Muted>;
-  else if (open)
-    status = (
-      <Button
-        title={`Check in · closes in ${fmtCountdown(windowEnd - now)}`}
-        size="lg"
-        onPress={() => router.push(`/checkin/${o.id}`)}
-      />
-    );
-  else status = <Text style={styles.amber}>Window closed. Skip posts at {fmtTime(o.skip_deadline)}.</Text>;
-
+/** The class whose window is open right now: its own card with the primary action. */
+export function OpenClassCard({ occurrence: o, there, total }: { occurrence: Occurrence; there: { name: string; uri?: string | null }[]; total: number }) {
+  const now = useNow().getTime();
+  const router = useRouter();
+  const windowEnd = new Date(o.window_end).getTime();
   return (
-    <Card tone={open ? colors.accent : undefined}>
+    <Card style={styles.openCard}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.code}>{o.course_code}</Text>
-          {o.name ? <Muted numberOfLines={1}>{o.name}</Muted> : null}
+          <Txt variant="title">{o.course_code}</Txt>
+          <Txt variant="subhead" tone="secondary" numberOfLines={1}>
+            {o.name ? `${o.building_code} · ${o.name}` : o.building_code}
+          </Txt>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.time}>
-            {fmtTime(o.starts_at)} – {fmtTime(o.ends_at)}
-          </Text>
-          <Muted>{o.building_code}</Muted>
-        </View>
+        <Badge label="Open" tone="neutral" icon="radio-button-on" />
       </Row>
-      <View style={{ marginTop: space.md }}>{status}</View>
-      {pending && total > 1 ? (
-        <Muted style={{ marginTop: space.sm }}>
-          {othersThere} of {total} in your circle are there
-        </Muted>
+      {total > 1 ? (
+        <Row gap={space.sm} style={{ marginTop: space.md }}>
+          {there.length > 0 ? <AvatarStack people={there} /> : null}
+          <Txt variant="footnote" tone="secondary">
+            {there.length === 0 ? 'Nobody from your circle is there yet' : `${there.length} of ${total} in your circle are there`}
+          </Txt>
+        </Row>
       ) : null}
-      {pending && !o.is_demo ? (
-        // Hidden on demo classes: one mis-tap next to the big Check in button would excuse the presenter.
-        <Pressable onPress={onExcuse} disabled={busy} hitSlop={6} style={{ marginTop: space.sm, alignSelf: 'flex-start' }}>
-          <Text style={styles.ghost}>{busy ? 'Marking…' : "Can't make it (sick / emergency)"}</Text>
-        </Pressable>
-      ) : null}
-      <ErrorText>{error}</ErrorText>
+      <Button title="Check in" icon="camera" size="lg" haptic style={{ marginTop: space.lg }} onPress={() => router.push(`/checkin/${o.id}`)} />
+      <Txt variant="footnote" tone="tertiary" align="center" tabular style={{ marginTop: space.sm }}>
+        Closes in {fmtCountdown(windowEnd - now)}
+      </Txt>
     </Card>
   );
 }
 
+/** One class in the day's grouped list. */
+export function OccurrenceRow({ occurrence: o }: { occurrence: Occurrence }) {
+  const now = useNow().getTime();
+  const { busy, error, onExcuse } = useExcuse(o);
+  const windowStart = new Date(o.window_start).getTime();
+  const pending = o.status === 'pending';
+
+  let trailing: React.ReactNode;
+  let note: string | null = null;
+  if (o.status === 'checked_in') trailing = <Badge label="Checked in" tone="success" icon="checkmark" />;
+  else if (o.status === 'skipped') trailing = <Badge label="Skipped" tone="danger" icon="close" />;
+  else if (o.status === 'excused') trailing = <Badge label="Excused" tone="info" />;
+  else if (now < windowStart)
+    trailing = (
+      <Txt variant="footnote" tone="secondary" tabular>
+        Opens in {fmtCountdown(windowStart - now)}
+      </Txt>
+    );
+  else {
+    trailing = <Badge label="Window closed" tone="warning" />;
+    note = `Skip posts at ${fmtTime(o.skip_deadline)}`;
+  }
+
+  return (
+    <View style={styles.row}>
+      <View style={styles.time}>
+        <Txt variant="subhead" weight="600" tabular>
+          {fmtTime(o.starts_at)}
+        </Txt>
+        <Txt variant="footnote" tone="tertiary" tabular>
+          {fmtTime(o.ends_at)}
+        </Txt>
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Txt variant="headline">{o.course_code}</Txt>
+        <Txt variant="footnote" tone="secondary" numberOfLines={1}>
+          {o.name ? `${o.building_code} · ${o.name}` : o.building_code}
+        </Txt>
+        {note ? (
+          <Txt variant="footnote" tone="tertiary">
+            {note}
+          </Txt>
+        ) : null}
+        {pending && !o.is_demo ? (
+          // Hidden on demo classes: one mis-tap next to the big Check in button would excuse the presenter.
+          <Pressable onPress={onExcuse} disabled={busy} hitSlop={6} style={({ pressed }) => [{ alignSelf: 'flex-start', marginTop: 2, opacity: pressed ? 0.6 : 1 }]}>
+            <Txt variant="footnote" tone="secondary" style={{ textDecorationLine: 'underline' }}>
+              {busy ? 'Marking…' : "Can't make it?"}
+            </Txt>
+          </Pressable>
+        ) : null}
+        <ErrorText>{error}</ErrorText>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>{trailing}</View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  code: { color: colors.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  time: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  amber: { color: colors.amber, fontSize: 15, fontWeight: '600' },
-  ghost: { color: colors.faint, fontSize: 13, textDecorationLine: 'underline' },
+  openCard: { marginBottom: space.lg },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    minHeight: 60,
+    backgroundColor: colors.surface,
+  },
+  time: { width: 64 },
 });

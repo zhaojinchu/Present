@@ -6,12 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "present",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f0f12"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": false,
@@ -25,12 +25,14 @@
       "package": "edu.cmu.present",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0f0f12"
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "web": {
+      "bundler": "metro",
+      "output": "static",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
@@ -46,11 +48,15 @@
       ],
       [
         "expo-notifications",
-        { "color": "#f97316" }
+        { "color": "#FF6B1F" }
       ]
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "owner": "zhaojinc",
+    "extra": {
+      "eas": { "projectId": "f9903b2b-ce3e-4844-8f22-1b5c822cccbc" }
     }
   }
 }

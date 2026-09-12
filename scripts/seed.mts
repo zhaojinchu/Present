@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
-// Present — demo seed. Wipes and rebuilds the team's accounts, circle, schedules and two weeks
-// of believable history (PLAN.md §9). Idempotent: run it as often as you like.
+// Present v2 — demo seed. Wipes and rebuilds the team's accounts, friendships, schedules and two
+// weeks of believable history: on-time posts, one late post, one unexcused miss with an
+// explanation and a reply, one excused miss, reactions and comments. Idempotent.
 //
 //   npm run seed
 //
@@ -15,7 +16,6 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const TZ = 'America/New_York';
 const BUCKET = 'checkin-photos';
 
 // ---------------------------------------------------------------- config
@@ -23,23 +23,27 @@ const BUCKET = 'checkin-photos';
 interface ClassSpec {
   course_code: string;
   name?: string;
-  building_code: string;
+  location_text?: string;
+  lat?: number;
+  lng?: number;
   days: number[];
   start: string; // 'HH:MM'
   end: string;
 }
 interface MemberSpec {
   first: string;
+  username: string;
   display_name: string;
+  tz: string;
   classes: ClassSpec[];
 }
 interface SeedSpec {
-  circle: { name: string; forfeit_text: string; invite_code: string };
   password: string;
   demo_course: string;
-  past_skip_member: string;
-  past_skip_paid_by: string;
   history_class_days: number;
+  late_member: string;
+  miss_member: string;
+  excused_member: string;
   members: MemberSpec[];
 }
 
@@ -67,23 +71,6 @@ for (const m of spec.members) {
   }
 }
 
-const BUILDINGS: [string, string, number, number, number][] = [
-  ['GHC', 'Gates & Hillman Centers', 40.4436, -79.9446, 110],
-  ['WEH', 'Wean Hall', 40.4427, -79.9457, 100],
-  ['DH', 'Doherty Hall', 40.4423, -79.9446, 100],
-  ['BH', 'Baker Hall', 40.4415, -79.9444, 100],
-  ['PH', 'Porter Hall', 40.4416, -79.9455, 100],
-  ['HH', 'Hamerschlag Hall', 40.4424, -79.9466, 90],
-  ['SH', 'Scaife Hall', 40.4422, -79.9472, 90],
-  ['HL', 'Hunt Library', 40.4409, -79.9437, 90],
-  ['CUC', 'Cohon University Center', 40.4431, -79.942, 110],
-  ['TEP', 'Tepper Quad', 40.445, -79.9456, 110],
-  ['POS', 'Posner Hall', 40.4411, -79.9422, 80],
-  ['MM', 'Margaret Morrison Carnegie Hall', 40.4404, -79.9426, 90],
-  ['NSH', 'Newell-Simon Hall', 40.4435, -79.9455, 90],
-  ['MI', 'Mellon Institute', 40.4457, -79.9512, 100],
-];
-
 // ---------------------------------------------------------------- helpers
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -92,12 +79,7 @@ const db = new pg.Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthor
 async function sql<T = Record<string, any>>(text: string, params: unknown[] = []): Promise<T[]> {
   return (await db.query(text, params)).rows as T[];
 }
-
-/** 'YYYY-MM-DD' of a Date in New York. */
-function nyDate(d: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-}
-/** Day of week (0=Sun) of a 'YYYY-MM-DD' date, treating it as a calendar date. */
+/** Day of week (0=Sun) of a 'YYYY-MM-DD' date, as a calendar date. */
 function dow(ymd: string): number {
   const [y, m, d] = ymd.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -110,17 +92,17 @@ const rand = (n: number) => Math.floor(Math.random() * n);
 function shuffle<T>(a: T[]): T[] {
   return [...a].sort(() => Math.random() - 0.5);
 }
-
-/** Build a timestamptz expression for a local NY date + time, resolved by Postgres. */
-const at = (ymd: string, hhmm: string) => `(('${ymd} ${hhmm}')::timestamp at time zone '${TZ}')`;
+/** A timestamptz expression for a wall-clock date + time in a zone, resolved by Postgres. */
+const at = (ymd: string, hhmm: string, tz: string) => `(('${ymd} ${hhmm}')::timestamp at time zone '${tz}')`;
 
 // ---------------------------------------------------------------- main
 
 await db.connect();
-const today = (await sql<{ d: string }>(`select (now() at time zone '${TZ}')::date::text as d`))[0].d;
-console.log(`Seeding against ${SUPABASE_URL} (today in NY: ${today})`);
+const tz0 = spec.members[0].tz;
+const today = (await sql<{ d: string }>(`select (now() at time zone '${tz0}')::date::text as d`))[0].d;
+console.log(`Seeding against ${SUPABASE_URL} (today in ${tz0}: ${today})`);
 
-// 1. Wipe previous seed users (cascades profiles -> classes, occurrences, checkins, feed, memberships).
+// 1. Wipe previous seed users (cascades profiles -> friendships, classes, occurrences, posts, feed).
 {
   let page = 1;
   let deleted = 0;
@@ -137,35 +119,24 @@ console.log(`Seeding against ${SUPABASE_URL} (today in NY: ${today})`);
     if (data.users.length < 200) break;
     page += 1;
   }
-  await sql(`delete from public.circles where invite_code = $1`, [spec.circle.invite_code]);
   console.log(`wiped ${deleted} seed users`);
 }
 
-// 2. Buildings.
-for (const [code, name, lat, lng, r] of BUILDINGS) {
-  await sql(
-    `insert into public.buildings (code, name, lat, lng, radius_m) values ($1, $2, $3, $4, $5)
-     on conflict (code) do update set name = excluded.name, lat = excluded.lat, lng = excluded.lng, radius_m = excluded.radius_m`,
-    [code, name, lat, lng, r],
-  );
-}
-console.log(`upserted ${BUILDINGS.length} buildings`);
-
-// 3. Users.
+// 2. Users (the auth trigger creates profiles with username + tz from the metadata).
 const userId: Record<string, string> = {};
 for (const m of spec.members) {
   const { data, error } = await admin.auth.admin.createUser({
     email: `${m.first}@present.demo`,
     password: spec.password,
     email_confirm: true,
-    user_metadata: { display_name: m.display_name },
+    user_metadata: { display_name: m.display_name, username: m.username, tz: m.tz },
   });
   if (error) throw error;
   userId[m.first] = data.user.id;
 }
 console.log(`created ${spec.members.length} users`);
 
-// 4. Photos: upload scripts/seed/photos/*.jpg as seed/<user_id>/<n>.jpg.
+// 3. Photos: upload scripts/seed/photos/*.jpg as seed/<user_id>/<n>.jpg.
 const photoDir = path.join(here, 'seed', 'photos');
 const allPhotos = fs.existsSync(photoDir) ? fs.readdirSync(photoDir).filter((f) => /\.(jpe?g|png)$/i.test(f)) : [];
 const photoPaths: Record<string, string[]> = {};
@@ -183,36 +154,53 @@ for (const m of spec.members) {
     photoPaths[m.first].push(dest);
   }
 }
-if (!allPhotos.length) console.warn('! no photos in scripts/seed/photos; history cards will have no images');
+if (!allPhotos.length) console.warn('! no photos in scripts/seed/photos; posts will have no images');
 else console.log(`uploaded ${Object.values(photoPaths).flat().length} photos`);
 
-// 5. Circle + members (joined three weeks ago, so history counts toward the circle streak).
-const circleId = (
-  await sql<{ id: string }>(
-    `insert into public.circles (name, forfeit_text, invite_code, created_by) values ($1, $2, $3, $4) returning id`,
-    [spec.circle.name, spec.circle.forfeit_text, spec.circle.invite_code, userId[spec.members[0].first]],
-  )
-)[0].id;
-for (const [i, m] of spec.members.entries()) {
-  await sql(`insert into public.circle_members (circle_id, user_id, joined_at) values ($1, $2, now() - interval '21 days')`, [circleId, userId[m.first]]);
-  await sql(
-    `insert into public.feed_events (circle_id, actor_id, type, payload, created_at)
-     values ($1, $2, 'member_joined', $3, now() - interval '21 days' + ($4 || ' minutes')::interval)`,
-    [circleId, userId[m.first], JSON.stringify({ display_name: m.display_name, created: i === 0 }), i * 3],
-  );
+// 4. Friendships: everyone is friends with everyone, since three weeks ago.
+{
+  let edges = 0;
+  for (let i = 0; i < spec.members.length; i++) {
+    for (let j = i + 1; j < spec.members.length; j++) {
+      const a = userId[spec.members[i].first];
+      const b = userId[spec.members[j].first];
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      await sql(
+        `insert into public.friendships (user_lo, user_hi, requested_by, status, created_at, accepted_at)
+         values ($1, $2, $3, 'accepted', now() - interval '22 days', now() - interval '21 days')`,
+        [lo, hi, a],
+      );
+      edges += 1;
+    }
+  }
+  // a couple of "became friends" events so the bottom of the feed has an origin
+  for (let j = 1; j < spec.members.length; j++) {
+    const me = spec.members[0];
+    const them = spec.members[j];
+    await sql(
+      `insert into public.feed_events (actor_id, type, ref_id, payload, created_at)
+       values ($1, 'friends', $2, $3, now() - interval '21 days' + ($4 || ' minutes')::interval)`,
+      [
+        userId[me.first],
+        userId[them.first],
+        JSON.stringify({ display_name: me.display_name, username: me.username, avatar_url: null, friend_id: userId[them.first], friend_name: them.display_name, friend_username: them.username }),
+        j * 4,
+      ],
+    );
+  }
+  console.log(`${edges} friendships`);
 }
-console.log(`circle "${spec.circle.name}" created, invite code ${spec.circle.invite_code}`);
 
-// 6. Classes (the insert trigger generates the next 7 days of pending occurrences).
+// 5. Classes (the insert trigger generates the next 7 days of pending occurrences).
 const classId: Record<string, Record<string, string>> = {};
 for (const m of spec.members) {
   classId[m.first] = {};
   for (const c of m.classes) {
     const row = (
       await sql<{ id: string }>(
-        `insert into public.classes (user_id, course_code, name, building_code, days_of_week, start_time, end_time)
-         values ($1, $2, $3, $4, $5, $6, $7) returning id`,
-        [userId[m.first], c.course_code, c.name ?? null, c.building_code, c.days, c.start, c.end],
+        `insert into public.classes (user_id, course_code, name, location_text, lat, lng, radius_m, tz, days_of_week, start_time, end_time, source)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ics') returning id`,
+        [userId[m.first], c.course_code, c.name ?? null, c.location_text ?? null, c.lat ?? null, c.lng ?? null, c.lat != null ? 60 : null, m.tz, c.days, c.start, c.end],
       )
     )[0];
     classId[m.first][c.course_code] = row.id;
@@ -220,7 +208,7 @@ for (const m of spec.members) {
 }
 console.log('classes inserted');
 
-// 7. History. Triggers off (the check-in trigger would reject closed windows), explicit timestamps.
+// 6. History. Triggers off (create_post would reject closed windows), explicit timestamps.
 await sql(`set session_replication_role = replica`);
 
 // class-days: last N weekdays before today, oldest first
@@ -230,210 +218,213 @@ for (let d = 1; classDays.length < spec.history_class_days; d++) {
   const w = dow(ymd);
   if (w >= 1 && w <= 5) classDays.unshift(ymd);
 }
-const skipDay = classDays[1]; // second-oldest day, so the streak has a clean run after it
-const skipper = spec.members.find((m) => m.first === spec.past_skip_member) ?? spec.members[1];
-const payer = spec.members.find((m) => m.first === spec.past_skip_paid_by) ?? spec.members.find((m) => m !== skipper)!;
+// Recent enough to sit inside the feed's last 50 events, spaced so they never share a day.
+const missDay = classDays[Math.max(1, classDays.length - 4)];
+const excusedDay = classDays[Math.max(0, classDays.length - 6)];
+const lateDay = classDays[Math.max(2, classDays.length - 2)];
+const byFirst = (f: string) => spec.members.find((m) => m.first === f) ?? spec.members[1];
+const misser = byFirst(spec.miss_member);
+const later = byFirst(spec.late_member);
+const excused = byFirst(spec.excused_member);
 
-const personalStreak: Record<string, number> = Object.fromEntries(spec.members.map((m) => [m.first, 0]));
-let circleStreak = 0;
+const streak: Record<string, number> = Object.fromEntries(spec.members.map((m) => [m.first, 0]));
 let photoIdx = 0;
-let checkins = 0;
+let postCount = 0;
+const eventIds: { id: string; kind: 'post' | 'miss'; who: string }[] = [];
+const profileJson = (m: MemberSpec) => ({ display_name: m.display_name, username: m.username, avatar_url: null });
 
-async function seedCheckin(m: MemberSpec, c: ClassSpec, ymd: string, streakAfter: number, circleAfter: number) {
-  const occ = (
+async function insertOccurrence(m: MemberSpec, c: ClassSpec, ymd: string, status: string, late = false, postedAt: string | null = null) {
+  return (
     await sql<{ id: string }>(
       `insert into public.class_occurrences
-         (class_id, user_id, building_code, date, starts_at, ends_at, window_start, window_end, skip_deadline, status)
-       values ($1, $2, $3, $4::date, ${at(ymd, c.start)}, ${at(ymd, c.end)},
-               ${at(ymd, c.start)} - interval '10 min', ${at(ymd, c.start)} + interval '15 min',
-               ${at(ymd, c.end)} + interval '10 min', 'checked_in')
+         (class_id, user_id, date, starts_at, ends_at, opens_at, on_time_until, deadline, status, late, posted_at)
+       values ($1, $2, $3::date, ${at(ymd, c.start, m.tz)}, ${at(ymd, c.end, m.tz)},
+               ${at(ymd, c.start, m.tz)} - interval '2 min', ${at(ymd, c.start, m.tz)} + interval '10 min',
+               ${at(ymd, c.end, m.tz)} + interval '10 min', $4, $5, ${postedAt ?? 'null'})
        returning id`,
-      [classId[m.first][c.course_code], userId[m.first], c.building_code, ymd],
+      [classId[m.first][c.course_code], userId[m.first], ymd, status, late],
     )
-  )[0];
+  )[0].id;
+}
+
+async function seedPost(m: MemberSpec, c: ClassSpec, ymd: string, opts: { late?: boolean; minutes?: number; retakes?: number; caption?: string | null; streakAfter: number }) {
+  const minutes = opts.minutes ?? rand(9); // posted 0-8 minutes after the start
+  const postedAt = `${at(ymd, c.start, m.tz)} + interval '${minutes} minutes'`;
+  const occ = await insertOccurrence(m, c, ymd, 'posted', !!opts.late, postedAt);
   const photos = photoPaths[m.first];
   const photo = photos.length ? photos[photoIdx++ % photos.length] : null;
-  const minutes = rand(9); // checked in 0-8 minutes after the start
-  const ck = (
+  const verified = c.lat != null;
+  const post = (
     await sql<{ id: string }>(
-      `insert into public.checkins (occurrence_id, user_id, photo_path, in_geofence, expires_at, created_at)
-       values ($1, $2, $3, true, now() + interval '7 days', ${at(ymd, c.start)} + ($4 || ' minutes')::interval)
+      `insert into public.posts (occurrence_id, user_id, photo_path, photo_back_path, caption, late, location_verified, retake_count, expires_at, memory_until, created_at)
+       values ($1, $2, $3, null, $4, $5, $6, $7, now() + interval '7 days', now() + interval '30 days', ${postedAt})
        returning id`,
-      [occ.id, userId[m.first], photo, minutes],
+      [occ, userId[m.first], photo, opts.caption ?? null, !!opts.late, verified, opts.retakes ?? 0],
     )
   )[0];
-  await sql(
-    `insert into public.feed_events (circle_id, actor_id, occurrence_id, type, ref_id, payload, created_at)
-     values ($1, $2, $3, 'checkin', $4, $5, ${at(ymd, c.start)} + ($6 || ' minutes')::interval)`,
-    [
-      circleId,
-      userId[m.first],
-      occ.id,
-      ck.id,
-      JSON.stringify({
-        display_name: m.display_name,
-        avatar_url: null,
-        course_code: c.course_code,
-        photo_path: photo,
-        photo_back_path: null,
-        in_geofence: true,
-        personal_streak_after: streakAfter,
-        circle_streak_after: circleAfter,
-      }),
-      minutes,
-    ],
-  );
-  checkins += 1;
+  const ev = (
+    await sql<{ id: string }>(
+      `insert into public.feed_events (actor_id, occurrence_id, type, ref_id, payload, created_at)
+       values ($1, $2, 'post', $3, $4::jsonb || jsonb_build_object('starts_at', ${at(ymd, c.start, m.tz)}, 'posted_at', ${postedAt}, 'expires_at', now() + interval '7 days'), ${postedAt})
+       returning id`,
+      [
+        userId[m.first],
+        occ,
+        post.id,
+        JSON.stringify({
+          ...profileJson(m),
+          course_code: c.course_code,
+          location_text: c.location_text ?? null,
+          photo_path: photo,
+          photo_back_path: null,
+          caption: opts.caption ?? null,
+          late: !!opts.late,
+          location_verified: verified,
+          retake_count: opts.retakes ?? 0,
+          streak_after: opts.streakAfter,
+        }),
+      ],
+    )
+  )[0];
+  eventIds.push({ id: ev.id, kind: 'post', who: m.first });
+  postCount += 1;
 }
 
 for (const ymd of classDays) {
   const w = dow(ymd);
-  const isSkipDay = ymd === skipDay;
-  // streak bookkeeping for the payload numbers (display only; the app computes the real ones on read)
-  const dayComplete: Record<string, boolean> = {};
-  for (const m of spec.members) {
-    const todays = m.classes.filter((c) => c.days.includes(w));
-    if (!todays.length) continue;
-    const skipsToday = isSkipDay && m === skipper;
-    dayComplete[m.first] = !skipsToday;
-    personalStreak[m.first] = skipsToday ? 0 : personalStreak[m.first] + 1;
-  }
-  const anyone = Object.keys(dayComplete).length > 0;
-  if (anyone) circleStreak = Object.values(dayComplete).every(Boolean) ? circleStreak + 1 : 0;
-
   for (const m of spec.members) {
     const todays = m.classes.filter((c) => c.days.includes(w)).sort((a, b) => a.start.localeCompare(b.start));
+    if (!todays.length) continue;
+    const isMissDay = ymd === missDay && m === misser;
+    const isExcusedDay = ymd === excusedDay && m === excused;
+    const isLateDay = ymd === lateDay && m === later;
+
+    if (isMissDay) streak[m.first] = 0;
+    else if (isLateDay && todays.length === 1) {
+      /* a late-only day neither extends nor breaks */
+    } else streak[m.first] += 1;
+
     for (const [i, c] of todays.entries()) {
-      if (isSkipDay && m === skipper && i === 0) {
-        // The past skip, with everything that followed it.
-        const occ = (
+      if (isMissDay && i === 0) {
+        const occ = await insertOccurrence(m, c, ymd, 'missed');
+        const miss = (
           await sql<{ id: string }>(
-            `insert into public.class_occurrences
-               (class_id, user_id, building_code, date, starts_at, ends_at, window_start, window_end, skip_deadline, status)
-             values ($1, $2, $3, $4::date, ${at(ymd, c.start)}, ${at(ymd, c.end)},
-                     ${at(ymd, c.start)} - interval '10 min', ${at(ymd, c.start)} + interval '15 min',
-                     ${at(ymd, c.end)} + interval '10 min', 'skipped')
-             returning id`,
-            [classId[m.first][c.course_code], userId[m.first], c.building_code, ymd],
+            `insert into public.misses (occurrence_id, user_id, excused, explanation, created_at)
+             values ($1, $2, false, $3, ${at(ymd, c.end, m.tz)} + interval '10 min') returning id`,
+            [occ, userId[m.first], 'overslept, my bad'],
           )
         )[0];
-        const skip = (
+        const ev = (
           await sql<{ id: string }>(
-            `insert into public.skips (occurrence_id, user_id, circle_id, excused, explanation, created_at)
-             values ($1, $2, $3, false, $4, ${at(ymd, c.end)} + interval '10 min') returning id`,
-            [occ.id, userId[m.first], circleId, 'overslept, my bad'],
+            `insert into public.feed_events (actor_id, occurrence_id, type, ref_id, payload, created_at)
+             values ($1, $2, 'miss', $3, $4::jsonb || jsonb_build_object('starts_at', ${at(ymd, c.start, m.tz)}), ${at(ymd, c.end, m.tz)} + interval '10 min') returning id`,
+            [userId[m.first], occ, miss.id, JSON.stringify({ ...profileJson(m), course_code: c.course_code, streak_before: 1 })],
           )
         )[0];
-        const forfeit = (
-          await sql<{ id: string }>(
-            `insert into public.forfeits (circle_id, owed_by, skip_id, description, status, marked_paid_by, paid_at, local_date, created_at)
-             values ($1, $2, $3, $4, 'paid', $5, ${at(addDays(ymd, 1), '18:00')}, $6::date, ${at(ymd, c.end)} + interval '10 min')
-             returning id`,
-            [circleId, userId[m.first], skip.id, spec.circle.forfeit_text, userId[payer.first], ymd],
-          )
-        )[0];
-        const ev = async (type: string, ref: string, payload: object, when: string) =>
-          (
-            await sql<{ id: string }>(
-              `insert into public.feed_events (circle_id, actor_id, occurrence_id, type, ref_id, payload, created_at)
-               values ($1, $2, $3, $4, $5, $6, ${when}) returning id`,
-              [circleId, userId[m.first], occ.id, type, ref, JSON.stringify(payload)],
-            )
-          )[0].id;
-        const skipEv = await ev(
-          'skip',
-          skip.id,
-          {
-            display_name: m.display_name,
-            course_code: c.course_code,
-            starts_at: null,
-            personal_streak_before: 1,
-            circle_streak_before: 1,
-          },
-          `${at(ymd, c.end)} + interval '10 min'`,
+        await sql(
+          `insert into public.comments (feed_event_id, user_id, text, created_at) values ($1, $2, $3, ${at(ymd, c.end, m.tz)} + interval '22 min')`,
+          [ev.id, userId[m.first], 'overslept, my bad'],
         );
-        await sql(`update public.feed_events set payload = payload || jsonb_build_object('starts_at', ${at(ymd, c.start)}) where id = $1`, [skipEv]);
-        await ev(
-          'forfeit_owed',
-          forfeit.id,
-          { display_name: m.display_name, description: spec.circle.forfeit_text, forfeit_id: forfeit.id },
-          `${at(ymd, c.end)} + interval '10 min 1 second'`,
+        const replier = spec.members.find((x) => x !== m)!;
+        await sql(
+          `insert into public.comments (feed_event_id, user_id, text, created_at) values ($1, $2, $3, ${at(ymd, c.end, m.tz)} + interval '31 min')`,
+          [ev.id, userId[replier.first], 'the boba is on you'],
         );
-        await ev(
-          'explanation',
-          skip.id,
-          { display_name: m.display_name, course_code: c.course_code, text: 'overslept, my bad' },
-          `${at(ymd, c.end)} + interval '22 min'`,
-        );
-        const paidEv = await ev(
-          'forfeit_paid',
-          forfeit.id,
-          {
-            display_name: m.display_name,
-            paid_by_name: payer.display_name,
-            paid_by: userId[payer.first],
-            description: spec.circle.forfeit_text,
-            forfeit_id: forfeit.id,
-          },
-          at(addDays(ymd, 1), '18:00'),
-        );
-        // reactions
         for (const other of spec.members.filter((x) => x !== m).slice(0, 2)) {
-          await sql(`insert into public.reactions (feed_event_id, circle_id, user_id, emoji) values ($1, $2, $3, '💀')`, [skipEv, circleId, userId[other.first]]);
+          await sql(`insert into public.reactions (feed_event_id, user_id, emoji) values ($1, $2, '💀')`, [ev.id, userId[other.first]]);
         }
-        for (const other of spec.members.filter((x) => x !== m).slice(0, 3)) {
-          await sql(`insert into public.reactions (feed_event_id, circle_id, user_id, emoji) values ($1, $2, $3, '🧋')`, [paidEv, circleId, userId[other.first]]);
-        }
+        eventIds.push({ id: ev.id, kind: 'miss', who: m.first });
         continue;
       }
-      await seedCheckin(m, c, ymd, personalStreak[m.first], circleStreak);
+      if (isExcusedDay && i === 0) {
+        const occ = await insertOccurrence(m, c, ymd, 'excused');
+        const miss = (
+          await sql<{ id: string }>(
+            `insert into public.misses (occurrence_id, user_id, excused, created_at) values ($1, $2, true, ${at(ymd, c.start, m.tz)} - interval '40 min') returning id`,
+            [occ, userId[m.first]],
+          )
+        )[0];
+        await sql(
+          `insert into public.feed_events (actor_id, occurrence_id, type, ref_id, payload, created_at)
+           values ($1, $2, 'excused', $3, $4, ${at(ymd, c.start, m.tz)} - interval '40 min')`,
+          [userId[m.first], occ, miss.id, JSON.stringify({ ...profileJson(m), course_code: c.course_code, pre_emptive: true })],
+        );
+        continue;
+      }
+      if (isLateDay && i === 0) {
+        await seedPost(m, c, ymd, { late: true, minutes: 22, retakes: 3, caption: 'bus.', streakAfter: streak[m.first] });
+        continue;
+      }
+      await seedPost(m, c, ymd, { streakAfter: streak[m.first], caption: rand(6) === 0 ? ['front row energy', 'awake, technically', 'coffee count: 2', 'prof is late again'][rand(4)] : null, retakes: rand(4) === 0 ? 1 + rand(2) : 0 });
     }
   }
 }
 
-// Today: anything whose deadline has already passed is checked in (so today is not a broken day).
+// Today: anything whose deadline has already passed is posted on time (so today is not a broken day).
 {
   const w = dow(today);
   for (const m of spec.members) {
     const todays = m.classes.filter((c) => c.days.includes(w)).sort((a, b) => a.start.localeCompare(b.start));
+    let bumped = false;
     for (const c of todays) {
-      const passed = (await sql<{ p: boolean }>(`select ${at(today, c.end)} + interval '10 min' < now() as p`))[0].p;
+      const passed = (await sql<{ p: boolean }>(`select ${at(today, c.end, m.tz)} + interval '10 min' < now() as p`))[0].p;
       if (!passed) continue;
-      await seedCheckin(m, c, today, personalStreak[m.first] + 1, circleStreak + 1);
+      if (!bumped) {
+        streak[m.first] += 1;
+        bumped = true;
+      }
+      await seedPost(m, c, today, { streakAfter: streak[m.first] });
+    }
+  }
+}
+
+// Reactions and comments on recent posts.
+{
+  const recent = eventIds.filter((e) => e.kind === 'post').slice(-8);
+  const emojis = ['🔥', '😂', '🫡', '💀', '🧋'];
+  const lines = ["where's the prof", 'late again', 'save me a seat', 'is this the 9:30', 'nice light'];
+  for (const e of recent) {
+    for (const other of shuffle(spec.members.filter((x) => x.first !== e.who)).slice(0, 1 + rand(2))) {
+      await sql(`insert into public.reactions (feed_event_id, user_id, emoji) values ($1, $2, $3) on conflict do nothing`, [e.id, userId[other.first], emojis[rand(emojis.length)]]);
+    }
+    if (rand(2) === 0) {
+      const other = spec.members.find((x) => x.first !== e.who)!;
+      await sql(`insert into public.comments (feed_event_id, user_id, text, created_at) values ($1, $2, $3, (select created_at + interval '6 minutes' from public.feed_events where id = $1))`, [e.id, userId[other.first], lines[rand(lines.length)]]);
     }
   }
 }
 
 await sql(`set session_replication_role = origin`);
-await sql(`select public.ensure_occurrences($1::date, 2)`, [today]);
-console.log(`history: ${classDays.length} class-days, ${checkins} check-ins, one past skip by ${skipper.display_name} (paid by ${payer.display_name})`);
+await sql(`select public.ensure_occurrences(current_date - 1, 3)`);
+console.log(`history: ${classDays.length} class-days, ${postCount} posts, ${misser.display_name} missed once (explained), ${excused.display_name} excused once, ${later.display_name} posted late once`);
 
-// Real classes later today stay pending on purpose (the app regenerates them on open anyway).
-// If one's deadline passes during the judging slot, cron turns it into a real skip on the projector.
+// Real classes later today stay pending on purpose. If one's deadline passes during the judging
+// slot, cron turns it into a real miss on the projector.
 {
   const soon = await sql<{ display_name: string; course_code: string; deadline: string }>(
-    `select p.display_name, c.course_code, to_char(o.skip_deadline at time zone '${TZ}', 'HH24:MI') as deadline
+    `select p.display_name, c.course_code, to_char(o.deadline at time zone '${tz0}', 'HH24:MI') as deadline
        from public.class_occurrences o
        join public.classes c on c.id = o.class_id
        join public.profiles p on p.id = o.user_id
-      where o.date = $1::date and o.status = 'pending' and not o.is_demo
-        and o.skip_deadline < now() + interval '4 hours'
-      order by o.skip_deadline`,
-    [today],
+      where o.status = 'pending' and not o.is_demo and o.deadline < now() + interval '4 hours'
+      order by o.deadline`,
   );
   if (soon.length) {
-    console.warn(`\n! ${soon.length} real class(es) today have skip deadlines in the next 4 h. If one passes during the demo it becomes a real skip:`);
-    for (const s of soon) console.warn(`    ${s.display_name.padEnd(10)} ${s.course_code}  deadline ${s.deadline}`);
-    console.warn('  Use a schedules.json with no classes near the judging slot, or excuse them from Home before the demo.');
+    console.warn(`\n! ${soon.length} real class(es) have deadlines in the next 4 h. If one passes during the demo it becomes a real miss:`);
+    for (const s of soon) console.warn(`    ${s.display_name.padEnd(16)} ${s.course_code}  deadline ${s.deadline}`);
+    console.warn('  Use a schedules.json with no classes near the judging slot, or tap "Can\'t make it" on them beforehand.');
   }
 }
 
-// 8. Report.
-const cs = (await sql<{ s: number }>(`select public.circle_streak($1) as s`, [circleId]))[0].s;
-console.log(`\ncircle streak: ${cs}`);
-for (const m of spec.members) {
-  const ps = (await sql<{ s: number }>(`select public.personal_streak($1) as s`, [userId[m.first]]))[0].s;
-  console.log(`  ${m.display_name.padEnd(10)} ${m.first}@present.demo / ${spec.password}   streak ${ps}`);
-}
-console.log(`\ninvite code: ${spec.circle.invite_code}\ndemo course: ${spec.demo_course}\n`);
+// 7. Report.
+console.log('\nleaderboard');
+const board = await sql<{ display_name: string; username: string; streak: number; best: number }>(
+  `select p.display_name, p.username, public.personal_streak(p.id) as streak, public.best_streak(p.id) as best
+     from public.profiles p where p.id = any($1::uuid[]) order by streak desc, p.display_name`,
+  [Object.values(userId)],
+);
+for (const [i, b] of board.entries()) console.log(`  #${i + 1} ${b.display_name.padEnd(16)} @${b.username.padEnd(8)} streak ${b.streak}  best ${b.best}`);
+console.log('\nlogins');
+for (const m of spec.members) console.log(`  ${m.display_name.padEnd(16)} ${m.first}@present.demo / ${spec.password}`);
+console.log(`\ndemo course: ${spec.demo_course}\n`);
 await db.end();

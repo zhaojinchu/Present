@@ -1,11 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, ErrorText, Input, Muted, Row, Spacer } from '@/components/ui';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Button, Chip, ErrorText, Field, Input, Row, Txt } from '@/components/ui';
 import { deleteClass, listBuildings, listMyClasses, saveClass } from '@/lib/api/schedule';
 import { useSession } from '@/lib/session';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, space } from '@/lib/theme';
 import { DOW_SHORT, fmtClock } from '@/lib/time';
 import type { Building } from '@/lib/types';
 
@@ -25,28 +25,24 @@ function hourLabel(h: number) {
   return `${h12} ${suffix}`;
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.chip, selected && styles.chipOn]} hitSlop={2}>
-      <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function TimePicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   const { h, m } = toHM(value);
   return (
-    <View style={{ marginBottom: space.md }}>
-      <Row style={{ justifyContent: 'space-between', marginBottom: space.xs }}>
-        <Muted>{label}</Muted>
-        <Text style={{ color: colors.text, fontWeight: '700' }}>{fmtClock(value)}</Text>
+    <View style={{ gap: space.sm }}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Txt variant="footnote" tone="secondary" weight="600">
+          {label}
+        </Txt>
+        <Txt variant="subhead" weight="600" tabular>
+          {fmtClock(value)}
+        </Txt>
       </Row>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
         {HOURS.map((hh) => (
           <Chip key={hh} label={hourLabel(hh)} selected={hh === h} onPress={() => onChange(`${pad(hh)}:${pad(m)}:00`)} />
         ))}
       </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
         {MINUTES.map((mm) => (
           <Chip key={mm} label={`:${pad(mm)}`} selected={mm === m} onPress={() => onChange(`${pad(h)}:${pad(mm)}:00`)} />
         ))}
@@ -161,63 +157,64 @@ export default function EditClass() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl * 2 }} keyboardShouldPersistTaps="handled">
-        <Muted style={{ marginBottom: space.xs }}>Course code</Muted>
-        <Input placeholder="15-122" autoCapitalize="characters" autoCorrect={false} value={courseCode} onChangeText={setCourseCode} />
-        <Spacer h={space.md} />
-        <Muted style={{ marginBottom: space.xs }}>Name (optional)</Muted>
-        <Input placeholder="Principles of Imperative Computation" value={name} onChangeText={setName} />
-        <Spacer h={space.lg} />
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl * 2, gap: space.xl }} keyboardShouldPersistTaps="handled">
+        <Field label="Course code">
+          <Input placeholder="15-122" autoCapitalize="characters" autoCorrect={false} value={courseCode} onChangeText={setCourseCode} />
+        </Field>
+        <Field label="Name (optional)">
+          <Input placeholder="Principles of Imperative Computation" value={name} onChangeText={setName} />
+        </Field>
 
-        <Muted style={{ marginBottom: space.xs }}>Days</Muted>
-        <Row gap={6} style={{ flexWrap: 'wrap' }}>
-          {DOW_SHORT.map((label, d) => (
-            <Chip key={d} label={label} selected={days.includes(d)} onPress={() => toggleDay(d)} />
-          ))}
-        </Row>
-        <Spacer h={space.lg} />
+        <View style={{ gap: space.sm }}>
+          <Txt variant="footnote" tone="secondary" weight="600">
+            Days
+          </Txt>
+          <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+            {DOW_SHORT.map((label, d) => (
+              <Chip key={d} label={label} selected={days.includes(d)} onPress={() => toggleDay(d)} />
+            ))}
+          </Row>
+        </View>
 
         <TimePicker label="Starts" value={start} onChange={setStart} />
         <TimePicker label="Ends" value={end} onChange={setEnd} />
 
-        <Muted style={{ marginBottom: space.xs }}>Building</Muted>
-        {!loaded ? <Muted>Loading…</Muted> : null}
-        <Row gap={6} style={{ flexWrap: 'wrap' }}>
-          {buildings.map((b) => (
-            <Chip key={b.code} label={`${b.code} · ${b.name}`} selected={b.code === buildingCode} onPress={() => setBuildingCode(b.code)} />
-          ))}
-        </Row>
-        {loaded && buildings.length === 0 ? <Muted style={{ marginTop: space.xs }}>No buildings loaded. Run the seed script first.</Muted> : null}
+        <View style={{ gap: space.sm }}>
+          <Txt variant="footnote" tone="secondary" weight="600">
+            Building
+          </Txt>
+          {!loaded ? (
+            <Txt variant="footnote" tone="tertiary">
+              Loading…
+            </Txt>
+          ) : null}
+          <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+            {buildings.map((b) => (
+              <Chip key={b.code} label={`${b.code} · ${b.name}`} selected={b.code === buildingCode} onPress={() => setBuildingCode(b.code)} />
+            ))}
+          </Row>
+          {loaded && buildings.length === 0 ? (
+            <Txt variant="footnote" tone="tertiary">
+              No buildings loaded. Run the seed script first.
+            </Txt>
+          ) : null}
+        </View>
 
-        <ErrorText>{error}</ErrorText>
-        <Spacer h={space.xl} />
-        <Button title={editing ? 'Save changes' : 'Add class'} size="lg" loading={busy} disabled={!loaded} onPress={onSave} />
-        {editing ? (
-          <>
-            <Spacer h={space.sm} />
-            <Button
-              title={confirmDelete ? 'Really delete? Tap again' : 'Delete class'}
-              variant={confirmDelete ? 'danger' : 'ghost'}
-              loading={busy && confirmDelete}
-              onPress={onDelete}
-            />
-          </>
-        ) : null}
+        <View>
+          <ErrorText>{error}</ErrorText>
+          <View style={{ gap: space.sm, marginTop: space.md }}>
+            <Button title={editing ? 'Save changes' : 'Add class'} size="lg" loading={busy} disabled={!loaded} onPress={onSave} />
+            {editing ? (
+              <Button
+                title={confirmDelete ? 'Really delete? Tap again' : 'Delete class'}
+                variant={confirmDelete ? 'destructive' : 'tertiary'}
+                loading={busy && confirmDelete}
+                onPress={onDelete}
+              />
+            ) : null}
+          </View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  chipOn: { borderColor: colors.accent, backgroundColor: colors.accent },
-  chipText: { color: colors.text, fontWeight: '600', fontSize: 14 },
-  chipTextOn: { color: colors.accentText },
-});

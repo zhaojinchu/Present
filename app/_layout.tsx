@@ -4,10 +4,11 @@ import React from 'react';
 import { Pressable, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppEffects } from '@/components/AppEffects';
+import { WebHead } from '@/components/WebHead';
 import { CircleStateProvider } from '@/lib/circleState';
 import { configureNotifications } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
-import { colors } from '@/lib/theme';
+import { colors, type } from '@/lib/theme';
 
 configureNotifications();
 
@@ -15,8 +16,8 @@ configureNotifications();
 function HeaderClose() {
   const router = useRouter();
   return (
-    <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-      <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '600' }}>Close</Text>
+    <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={12} style={({ pressed }) => ({ paddingHorizontal: 4, opacity: pressed ? 0.6 : 1 })}>
+      <Text style={[type.body, { color: colors.accent }]}>Close</Text>
     </Pressable>
   );
 }
@@ -26,16 +27,18 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SessionProvider>
         <CircleStateProvider>
-          <StatusBar style="light" />
+          <WebHead />
+          <StatusBar style="dark" />
           <AppEffects />
           <Stack
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: colors.bg },
               headerStyle: { backgroundColor: colors.bg },
-              headerTintColor: colors.text,
-              headerTitleStyle: { color: colors.text },
+              headerTintColor: colors.accent,
+              headerTitleStyle: { color: colors.text, fontSize: type.headline.fontSize, fontWeight: '600' },
               headerShadowVisible: false,
+              headerBackButtonDisplayMode: 'minimal',
             }}
           >
             <Stack.Screen name="index" />
@@ -45,7 +48,7 @@ export default function RootLayout() {
             <Stack.Screen name="explain/[skipId]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="forfeit/[id]" options={{ headerShown: true, title: 'Forfeit' }} />
             <Stack.Screen name="circle/index" />
-            <Stack.Screen name="schedule/index" options={{ headerShown: true, title: 'Your schedule' }} />
+            <Stack.Screen name="schedule/index" options={{ headerShown: true, title: 'Schedule' }} />
             <Stack.Screen
               name="schedule/edit"
               options={{ presentation: 'modal', headerShown: true, title: 'Class', headerLeft: () => <HeaderClose /> }}

@@ -1,11 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Button, Card, Center, ErrorText, H1, H2, Muted, P, Pill, Row, Screen, Spacer } from '@/components/ui';
+import { ScrollView, View } from 'react-native';
+import { Avatar, Badge, Button, Center, ErrorText, Group, ListRow, Row, Screen, SectionLabel, Txt } from '@/components/ui';
 import { markForfeitPaid } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { errorMessage } from '@/lib/supabase';
-import { colors, space, statusColor } from '@/lib/theme';
+import { space, statusLabel } from '@/lib/theme';
 import { dayLabel, fmtTime, relative } from '@/lib/time';
 
 export default function ForfeitDetail() {
@@ -21,9 +21,8 @@ export default function ForfeitDetail() {
     return (
       <Screen edges={['left', 'right']}>
         <Center>
-          <P>Forfeit not found</P>
-          <Spacer />
-          <Button title="Close" variant="ghost" onPress={() => router.back()} />
+          <Txt variant="headline">Forfeit not found</Txt>
+          <Button title="Close" variant="tertiary" onPress={() => router.back()} style={{ marginTop: space.md }} />
         </Center>
       </Screen>
     );
@@ -31,6 +30,8 @@ export default function ForfeitDetail() {
 
   const owedByMe = forfeit.owed_by === state.me;
   const others = state.forfeits.filter((f) => f.status === 'owed' && f.id !== forfeit.id);
+  const member = state.members.find((m) => m.id === forfeit.owed_by);
+  const tone = forfeit.status === 'owed' ? 'warning' : forfeit.status === 'paid' ? 'success' : 'neutral';
 
   const pay = async () => {
     setBusy(true);
@@ -47,81 +48,87 @@ export default function ForfeitDetail() {
 
   return (
     <Screen edges={['left', 'right']}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <Spacer />
-        <Row style={{ justifyContent: 'space-between' }}>
-          <H1>{forfeit.owed_by_name}</H1>
-          <Pill label={forfeit.status} color={statusColor[forfeit.status] ?? colors.muted} />
+      <ScrollView contentContainerStyle={{ paddingTop: space.lg, paddingBottom: space.xxxl }} showsVerticalScrollIndicator={false}>
+        <Row gap={space.lg}>
+          <Avatar name={forfeit.owed_by_name} uri={member?.avatar_url} size={56} />
+          <View style={{ flex: 1 }}>
+            <Txt variant="title" numberOfLines={1}>
+              {forfeit.owed_by_name}
+            </Txt>
+            <Badge label={statusLabel[forfeit.status] ?? forfeit.status} tone={tone} style={{ marginTop: 4 }} />
+          </View>
         </Row>
-        <Spacer h={space.sm} />
-        <Text style={{ color: colors.amber, fontSize: 24, fontWeight: '800' }}>{forfeit.description}</Text>
-        <Spacer />
-        <Card>
-          <Muted>Skipped</Muted>
-          <P>
-            {forfeit.course_code} at {fmtTime(forfeit.starts_at)} · {dayLabel(forfeit.starts_at)}
-          </P>
+        <Txt variant="headline" style={{ marginTop: space.lg }}>
+          Owes the circle: {forfeit.description}
+        </Txt>
+
+        <SectionLabel>Details</SectionLabel>
+        <Group>
+          <ListRow title="Skipped" trailing={<Txt variant="subhead" tone="secondary">{`${forfeit.course_code} · ${dayLabel(forfeit.starts_at)} ${fmtTime(forfeit.starts_at)}`}</Txt>} />
           {forfeit.explanation ? (
-            <>
-              <Spacer h={space.sm} />
-              <Muted>Their explanation</Muted>
-              <P style={{ fontStyle: 'italic' }}>“{forfeit.explanation}”</P>
-            </>
+            <ListRow
+              title="Their explanation"
+              subtitle={
+                <Txt variant="body" tone="secondary">
+                  “{forfeit.explanation}”
+                </Txt>
+              }
+            />
           ) : null}
-          <Spacer h={space.sm} />
-          <Muted>Owed since {relative(forfeit.created_at)}</Muted>
-        </Card>
+          <ListRow title="Owed since" trailing={<Txt variant="subhead" tone="secondary">{relative(forfeit.created_at)}</Txt>} />
+          {forfeit.status === 'paid' ? (
+            <ListRow
+              title="Paid"
+              trailing={
+                <Txt variant="subhead" tone="secondary">
+                  {forfeit.paid_by_name ?? 'the circle'}
+                  {forfeit.paid_at ? ` · ${relative(forfeit.paid_at)}` : ''}
+                </Txt>
+              }
+            />
+          ) : null}
+        </Group>
 
-        {forfeit.status === 'owed' ? (
-          owedByMe ? (
-            <Card>
-              <Muted>Only your circle can clear this. Pay up, then have someone tap “Mark paid”.</Muted>
-            </Card>
-          ) : (
-            <>
-              <Button title="Mark paid" variant="success" size="lg" loading={busy} onPress={pay} />
-              <ErrorText>{err}</ErrorText>
-            </>
-          )
-        ) : forfeit.status === 'paid' ? (
-          <Card tone={colors.green}>
-            <P>
-              Paid <Text style={{ color: colors.green, fontWeight: '800' }}>✓</Text>
-            </P>
-            <Muted>
-              Confirmed by {forfeit.paid_by_name ?? 'the circle'}
-              {forfeit.paid_at ? ` · ${relative(forfeit.paid_at)}` : ''}
-            </Muted>
-          </Card>
-        ) : (
-          <Card tone={colors.faint}>
-            <Muted>Voided: the skip was excused. No forfeit owed.</Muted>
-          </Card>
-        )}
+        <View style={{ marginTop: space.xl }}>
+          {forfeit.status === 'owed' ? (
+            owedByMe ? (
+              <Txt variant="footnote" tone="secondary" align="center">
+                Only your circle can clear this. Pay up, then have someone tap Mark paid.
+              </Txt>
+            ) : (
+              <>
+                <Button title="Mark paid" icon="checkmark" size="lg" loading={busy} onPress={pay} />
+                <ErrorText>{err}</ErrorText>
+              </>
+            )
+          ) : forfeit.status === 'voided' ? (
+            <Txt variant="footnote" tone="secondary" align="center">
+              Voided: the skip was excused. Nothing owed.
+            </Txt>
+          ) : null}
+        </View>
 
-        <Spacer h={space.xl} />
-        <H2>Open forfeits in {state.circle?.name ?? 'your circle'}</H2>
-        <Spacer h={space.sm} />
+        <SectionLabel>Open forfeits in {state.circle?.name ?? 'your circle'}</SectionLabel>
         {others.length === 0 ? (
-          <Muted>{forfeit.status === 'owed' ? 'Just this one.' : 'Nobody owes anything. Nice.'}</Muted>
+          <Txt variant="footnote" tone="tertiary">
+            {forfeit.status === 'owed' ? 'Just this one.' : 'Nobody owes anything.'}
+          </Txt>
         ) : (
-          others.map((f) => (
-            <Pressable key={f.id} onPress={() => router.push(`/forfeit/${f.id}` as never)}>
-              <Card tone={colors.amber}>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1 }}>
-                    <P>
-                      <Text style={{ fontWeight: '800' }}>{f.owed_by_name}</Text> owes: {f.description}
-                    </P>
-                    <Muted>
-                      {f.course_code} · {dayLabel(f.starts_at)}
-                    </Muted>
-                  </View>
-                  <Text style={{ color: colors.muted, fontSize: 18 }}>›</Text>
-                </Row>
-              </Card>
-            </Pressable>
-          ))
+          <Group>
+            {others.map((f) => (
+              <ListRow
+                key={f.id}
+                leading={<Avatar name={f.owed_by_name} uri={state.members.find((m) => m.id === f.owed_by)?.avatar_url} size={32} />}
+                title={
+                  <Txt variant="body" numberOfLines={1}>
+                    <Txt variant="headline">{f.owed_by_name}</Txt> owes: {f.description}
+                  </Txt>
+                }
+                subtitle={`${f.course_code} · ${dayLabel(f.starts_at)}`}
+                onPress={() => router.push(`/forfeit/${f.id}` as never)}
+              />
+            ))}
+          </Group>
         )}
       </ScrollView>
     </Screen>

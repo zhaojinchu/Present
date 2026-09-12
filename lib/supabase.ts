@@ -13,12 +13,22 @@ if (!supabaseConfigured) {
   );
 }
 
+// On web the export step pre-renders every route in Node (app.json web.output "static"), where
+// AsyncStorage's localStorage backend throws "window is not defined". No session exists there
+// anyway, so report an empty store until real browser code runs.
+const hasWindow = () => typeof window !== 'undefined';
+const sessionStorage = {
+  getItem: (key: string) => (hasWindow() ? AsyncStorage.getItem(key) : Promise.resolve(null)),
+  setItem: (key: string, value: string) => (hasWindow() ? AsyncStorage.setItem(key, value) : Promise.resolve()),
+  removeItem: (key: string) => (hasWindow() ? AsyncStorage.removeItem(key) : Promise.resolve()),
+};
+
 export const supabase = createClient(
   supabaseConfigured ? url : 'http://localhost:54321',
   supabaseConfigured ? anonKey : 'anon',
   {
     auth: {
-      storage: AsyncStorage,
+      storage: sessionStorage,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

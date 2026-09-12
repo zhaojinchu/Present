@@ -43,6 +43,12 @@ export function fmtCountdown(ms: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** 'Fri, Sep 12' regardless of whether it is today. */
+export function fmtDate(v: string | number | Date): string {
+  const d = toDate(v);
+  return valid(d) ? dayLabelFmt.format(d) : '';
+}
+
 export function dayLabel(v: string | number | Date, nowMs = Date.now()): string {
   const d = toDate(v);
   if (!valid(d)) return '';

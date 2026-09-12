@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// Checks that the hosted Supabase project has everything the app needs. `npm run verify`
+// Checks that the hosted Supabase project has everything the v2 app needs. `npm run verify`
 // Needs DATABASE_URL in .env (session pooler URI).
 import 'dotenv/config';
 import pg from 'pg';
@@ -26,59 +26,73 @@ async function rows<T = Record<string, any>>(sql: string): Promise<T[]> {
 }
 
 console.log('migrations');
-const migs = await rows<{ version: string; name: string }>(
-  `select version, name from supabase_migrations.schema_migrations order by version`,
-);
+const migs = await rows<{ version: string; name: string }>(`select version, name from supabase_migrations.schema_migrations order by version`);
 for (const m of migs) console.log(`       ${m.version}  ${m.name ?? ''}`);
-report(migs.length >= 5 && !('__error' in migs[0]), 'all 5 migration files applied', `${migs.length} recorded`);
+const v2 = migs.filter((m) => m.version?.startsWith('20260913'));
+const v1 = migs.filter((m) => m.version?.startsWith('20260912'));
+report(v2.length >= 5 && v1.length === 0 && !('__error' in migs[0]), 'v2 migration files applied, no v1 left', `${v2.length} v2, ${v1.length} v1`);
 
 console.log('\nfunctions');
 const expected = [
-  'my_circle_id', 'same_circle', 'ensure_occurrences', 'personal_streak', 'circle_streak', 'detect_skips',
-  'on_checkin_insert', 'on_skip_update', 'explain_skip', 'excuse_skip', 'excuse_occurrence', 'mark_forfeit_paid',
-  'create_circle', 'join_circle', 'toggle_reaction', 'get_circle_state', 'handle_new_user',
-  'dev_reset_demo', 'dev_start_class_now', 'dev_end_window_now', 'dev_set_demo_building',
-  'dev_replay_checkin', 'dev_replay_explanation', 'dev_replay_pay_forfeit',
+  'app_now', 'valid_tz', 'pick_username', 'handle_new_user', 'on_class_before_write',
+  'local_today', 'my_tz', 'my_today', 'friends_of', 'visible_users', 'event_visible', 'haversine_m', 'profile_json',
+  'ensure_occurrences', 'ensure_my_occurrences', 'on_class_change', 'personal_streak', 'best_streak',
+  'create_post_for', 'create_post', 'detect_misses', 'on_miss_update', 'explain_miss', 'excuse_miss', 'excuse_occurrence',
+  'username_available', 'send_friend_request', 'accept_friend_request', 'remove_friend', 'search_users', 'update_profile',
+  'toggle_reaction', 'add_comment', 'import_classes', 'get_state', 'get_memories', 'expire_photos',
+  'save_push_subscription', 'remove_push_subscription',
+  'dev_scope', 'dev_reset_demo', 'dev_start_class_now', 'dev_end_on_time_now', 'dev_end_window_now', 'dev_pin_here',
+  'dev_replay_post', 'dev_replay_explanation',
 ];
 const fns = new Set((await rows<{ proname: string }>(`select proname from pg_proc where pronamespace = 'public'::regnamespace`)).map((r) => r.proname));
 const missingFns = expected.filter((f) => !fns.has(f));
-report(missingFns.length === 0, `${expected.length} functions present`, missingFns.length ? `missing: ${missingFns.join(', ')}` : '');
+const v1Fns = ['get_circle_state', 'detect_skips', 'my_circle_id', 'create_circle'].filter((f) => fns.has(f));
+report(missingFns.length === 0 && v1Fns.length === 0, `${expected.length} functions present, no v1 leftovers`, [missingFns.length ? `missing: ${missingFns.join(', ')}` : '', v1Fns.length ? `v1: ${v1Fns.join(', ')}` : ''].filter(Boolean).join('; '));
 
 console.log('\nrow level security');
 const tables = await rows<{ relname: string; relrowsecurity: boolean }>(
   `select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' order by relname`,
 );
+const expectedTables = ['profiles', 'friendships', 'classes', 'class_occurrences', 'posts', 'misses', 'feed_events', 'reactions', 'comments', 'push_subscriptions'];
+const names = new Set(tables.map((t) => t.relname));
+const missingTables = expectedTables.filter((t) => !names.has(t));
 const noRls = tables.filter((t) => !t.relrowsecurity).map((t) => t.relname);
-report(tables.length >= 12 && noRls.length === 0, `${tables.length} tables, RLS on all`, noRls.length ? `RLS off: ${noRls.join(', ')}` : '');
+report(missingTables.length === 0 && noRls.length === 0 && tables.length === expectedTables.length, `${tables.length} tables, RLS on all`, [missingTables.length ? `missing: ${missingTables.join(', ')}` : '', noRls.length ? `RLS off: ${noRls.join(', ')}` : ''].filter(Boolean).join('; '));
+const pols = await rows<{ n: string }>(`select count(*)::text as n from pg_policies where schemaname = 'public'`);
+report(Number(pols[0]?.n) >= 14, `${pols[0]?.n} policies`);
 
 console.log('\ntriggers');
 const trg = new Set((await rows<{ tgname: string }>(`select tgname from pg_trigger where not tgisinternal`)).map((r) => r.tgname));
-for (const t of ['on_auth_user_created', 'classes_after_change', 'checkins_before_insert', 'skips_after_update']) report(trg.has(t), t);
+for (const t of ['on_auth_user_created', 'classes_before_write', 'classes_after_change', 'misses_after_update']) report(trg.has(t), t);
 
 console.log('\nstorage');
 const bucket = await rows<{ id: string; public: boolean }>(`select id, public from storage.buckets where id = 'checkin-photos'`);
 report(bucket.length === 1 && bucket[0].public === false, "private bucket 'checkin-photos'");
-const pols = await rows<{ policyname: string }>(`select policyname from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'checkin photos%'`);
-report(pols.length === 3, 'storage policies (upload / overwrite / read)', `${pols.length} of 3`);
+const spols = await rows<{ policyname: string }>(`select policyname from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'checkin photos%'`);
+report(spols.length === 3, 'storage policies (upload / overwrite / read)', `${spols.length} of 3`);
 
 console.log('\nrealtime');
 const pub = (await rows<{ tablename: string }>(`select tablename from pg_publication_tables where pubname = 'supabase_realtime'`)).map((r) => r.tablename);
-report(pub.includes('feed_events') && pub.includes('reactions'), 'supabase_realtime publishes feed_events + reactions', pub.join(', ') || 'none');
+const needPub = ['feed_events', 'reactions', 'comments', 'friendships'];
+report(needPub.every((t) => pub.includes(t)), 'supabase_realtime publishes feed_events, reactions, comments, friendships', pub.join(', ') || 'none');
 
 console.log('\ncron');
 const jobs = await rows<{ jobname: string; schedule: string; active: boolean; __error?: string }>(`select jobname, schedule, active from cron.job order by jobname`);
 if (jobs[0]?.__error) report(false, 'pg_cron', jobs[0].__error);
 else {
   for (const j of jobs) console.log(`       ${j.jobname.padEnd(28)} ${j.schedule.padEnd(12)} ${j.active ? 'active' : 'INACTIVE'}`);
-  report(jobs.filter((j) => j.jobname.startsWith('present-')).length === 3, '3 present-* cron jobs');
+  const present = jobs.filter((j) => j.jobname.startsWith('present-')).map((j) => j.jobname);
+  report(['present-detect-misses', 'present-ensure-occurrences', 'present-expire-photos'].every((j) => present.includes(j)) && present.length === 3, '3 present-* cron jobs');
 }
 
 console.log('\nauth');
 const users = await rows<{ n: string }>(`select count(*)::text as n from auth.users`);
 const seedUsers = await rows<{ n: string }>(`select count(*)::text as n from auth.users where email like '%@present.demo'`);
-console.log(`       ${users[0]?.n ?? '?'} users, ${seedUsers[0]?.n ?? '?'} seed users`);
-const buildings = await rows<{ n: string }>(`select count(*)::text as n from public.buildings`);
-console.log(`       ${buildings[0]?.n ?? '?'} buildings`);
+const profiles = await rows<{ n: string }>(`select count(*)::text as n from public.profiles`);
+console.log(`       ${users[0]?.n ?? '?'} users, ${seedUsers[0]?.n ?? '?'} seed users, ${profiles[0]?.n ?? '?'} profiles`);
+const friends = await rows<{ n: string }>(`select count(*)::text as n from public.friendships where status = 'accepted'`);
+const posts = await rows<{ n: string }>(`select count(*)::text as n from public.posts`);
+console.log(`       ${friends[0]?.n ?? '?'} friendships, ${posts[0]?.n ?? '?'} posts`);
 
 await db.end();
 console.log(failures ? `\n${failures} problem(s) above` : '\nall good');

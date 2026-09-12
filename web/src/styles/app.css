@@ -1,0 +1,161 @@
+/*
+ * App shell rules: everything that makes the page behave like an installed iOS app rather than
+ * a web page. See the "iOS native-feel checklist" in the v2 plan. Screens never override these.
+ */
+@import './tokens.css';
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    background: var(--color-bg);
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 22px;
+    /* The page itself never scrolls; one <main> per screen does. Kills rubber-banding and pull-to-refresh. */
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+  }
+
+  #root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Chrome text is not selectable; content (captions, comments) opts back in with .selectable */
+  #root {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  img,
+  video,
+  canvas {
+    -webkit-touch-callout: none;
+    display: block;
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  input,
+  textarea {
+    /* 16px or larger: Safari zooms the page on focus below that. Our body is 17px. */
+    font-size: 17px;
+  }
+
+  /* Keyboard users still get a ring; touch and mouse do not. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: 2px;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  /* One scrolling region per screen. */
+  .scroll-main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .scroll-main::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Press feedback for every tappable. */
+  .pressable {
+    transition: transform var(--duration-fast) var(--ease-press), opacity var(--duration-fast) var(--ease-press),
+      background-color var(--duration-fast) var(--ease-press);
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 1px hairline (device-pixel aware where supported). */
+  .hairline {
+    height: 1px;
+    background: var(--color-border);
+  }
+  @media (min-resolution: 2dppx) {
+    .hairline {
+      height: 0.5px;
+    }
+  }
+
+  .capture {
+    background: var(--color-capture-bg);
+    color: var(--color-capture-text);
+    color-scheme: dark;
+  }
+}
+
+/* Desktop and tablets: a phone-width column on a light grey ground so it reads as an app. */
+@media (min-width: 600px) and (min-height: 600px) {
+  body {
+    background: #e9e9ec;
+  }
+  #root {
+    max-width: 430px;
+    margin: 0 auto;
+    background: var(--color-bg);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
+  }
+}
