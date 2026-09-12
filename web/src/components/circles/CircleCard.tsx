@@ -6,12 +6,13 @@ import { useNavigate } from 'react-router';
 import { groupLabel, presentCount, rankRollCall, rollCall, sessionPhase, type Group } from '@/lib/groups';
 import { fmtTime } from '@/lib/time';
 import type { Occurrence } from '@/lib/types';
-import { AvatarStack, Card, cx, Icon, Stat, StreakChip, Txt } from '@/ui';
+import { ProfileAvatarStack } from '@/components/ProfileAvatarStack';
+import { Card, cx, Icon, Stat, StreakChip, Txt } from '@/ui';
 
 export function CircleCard({ group: g, compact, today = [], nowMs = 0, className }: { group: Group; compact?: boolean; /** Today's occurrences, for the live class line in compact mode. */ today?: Occurrence[]; nowMs?: number; className?: string }) {
   const navigate = useNavigate();
   const alive = g.streak > 0;
-  const people = g.members.map((m) => ({ name: m.display_name, src: m.avatar_url }));
+  const people = g.members.map((m) => ({ name: m.display_name, src: m.avatar_url, username: m.username }));
   const weekLine = g.week.total + g.week.upcoming > 0 ? `${g.week.made} of ${g.week.total + g.week.upcoming} this week` : 'No classes yet this week';
 
   if (compact) {
@@ -56,7 +57,7 @@ export function CircleCard({ group: g, compact, today = [], nowMs = 0, className
             </Txt>
           </div>
           <Txt variant="label" tone="tertiary" className="mt-0.5">
-            {alive ? 'Circle streak · everyone, every class' : 'Streak lost · everyone starts over'}
+            {alive ? 'Circle streak' : 'Streak lost'}
           </Txt>
         </div>
         <Stat size="md" value={g.best_streak} label="Best" align="end" />
@@ -64,17 +65,12 @@ export function CircleCard({ group: g, compact, today = [], nowMs = 0, className
       <div className="hairline my-3" />
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <AvatarStack people={people} size={24} max={5} />
+          <ProfileAvatarStack people={people} size={24} max={5} />
           <Txt variant="footnote" tone="secondary" lines={1}>
             {g.members.length} {g.members.length === 1 ? 'member' : 'members'} · {weekLine}
           </Txt>
         </div>
       </div>
-      {g.forfeit_text ? (
-        <Txt variant="footnote" tone="tertiary" className="mt-2" lines={1}>
-          Stakes: a miss {g.forfeit_text}.
-        </Txt>
-      ) : null}
     </Card>
   );
 }

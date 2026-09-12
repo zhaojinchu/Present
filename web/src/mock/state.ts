@@ -284,10 +284,6 @@ export function buildMockState(base = Date.now()): AppState {
         excused_miss_ids: [],
       },
     ],
-    shared_courses: [
-      { course_code: '15-122', name: 'Principles of Imperative Computation', user_ids: [SAM, PRIYA, JORDAN] },
-      { course_code: '21-241', name: 'Matrices and Linear Transformations', user_ids: [SAM, JORDAN] },
-    ],
   };
 }
 

@@ -24,9 +24,6 @@ export const WINDOW = {
   deadlineAfterEndMin: 10,
 } as const;
 
-export const REACTION_EMOJI = ['🔥', '😂', '🫡', '💀', '🧋'] as const;
-export type ReactionEmoji = (typeof REACTION_EMOJI)[number];
-
 export const CAPTION_MAX = 100;
 export const COMMENT_MAX = 200;
 export const EXPLANATION_MAX = 140;

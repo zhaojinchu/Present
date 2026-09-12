@@ -10,7 +10,8 @@ import { commentsFor, photoExpired, reactionsFor } from '@/lib/feed';
 import { listNames, type PostGroup } from '@/lib/presence';
 import { fmtTime, relative } from '@/lib/time';
 import type { Comment, FeedEvent, Reaction } from '@/lib/types';
-import { Avatar, AvatarStack, Badge, cx, Strong, StreakChip, Txt } from '@/ui';
+import { ProfileAvatarStack } from '@/components/ProfileAvatarStack';
+import { Avatar, Badge, cx, Strong, StreakChip, Txt } from '@/ui';
 import { CommentPreview } from './CommentPreview';
 import { PostMedia } from './PostMedia';
 import { ReactionBar } from './ReactionBar';
@@ -69,7 +70,7 @@ export function TogetherDeck({
   return (
     <article className="py-3">
       <header className="flex items-start gap-3 px-4">
-        <AvatarStack people={posts.map((e) => ({ name: e.payload.display_name ?? '?', src: e.payload.avatar_url }))} size={40} max={3} className="shrink-0" />
+        <ProfileAvatarStack people={posts.map((e) => ({ name: e.payload.display_name ?? '?', src: e.payload.avatar_url, username: e.payload.username }))} size={40} max={3} className="shrink-0" />
         <div className="flex-1 min-w-0">
           <Txt variant="body" lines={2}>
             <Strong>{listNames(names)}</Strong> are in {group.course_code}

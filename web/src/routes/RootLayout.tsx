@@ -2,7 +2,7 @@
 // subscription, the pending add-link, the "explain yourself" prompt, and the animated outlet.
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { StackTransition } from '@/app/StackTransition';
+import { LockGate } from '@/app/LockGate';
 import { sendFriendRequest } from '@/lib/api/social';
 import { useAppState, useRealtimeInvalidation, useSession } from '@/lib/appState';
 import { env } from '@/lib/config';
@@ -78,7 +78,7 @@ export default function RootLayout() {
   }
   return (
     <div className="relative flex-1 min-h-0">
-      <StackTransition />
+      <LockGate />
     </div>
   );
 }

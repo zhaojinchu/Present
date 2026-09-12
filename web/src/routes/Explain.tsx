@@ -73,9 +73,6 @@ export default function Explain() {
           <Button title="It was sick or an emergency" variant={excuseFirst ? 'primary' : 'secondary'} size="lg" icon={IoMedkitOutline} loading={busy === 'excuse'} disabled={busy === 'explain'} onClick={excuse} />
           <Button title="Later" variant="tertiary" size="lg" onClick={done} disabled={!!busy} />
           <ErrorText>{err}</ErrorText>
-          <Txt variant="footnote" tone="tertiary" align="center" className="mt-2">
-            An excused miss does not break your streak. Whatever you typed goes under the miss either way.
-          </Txt>
         </form>
       </Main>
     </Screen>

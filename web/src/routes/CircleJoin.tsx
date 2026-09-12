@@ -6,7 +6,7 @@ import { joinGroup } from '@/lib/api/groups';
 import { useInvalidateState } from '@/lib/appState';
 import { env } from '@/lib/config';
 import { errorMessage } from '@/lib/supabase';
-import { Button, ErrorText, Field, Input, Txt } from '@/ui';
+import { Button, ErrorText, Field, Input } from '@/ui';
 import { BackButton } from './_Stub';
 
 export default function CircleJoin() {
@@ -43,7 +43,7 @@ export default function CircleJoin() {
       <Header title="Join a circle" left={<BackButton />} />
       <Main>
         <div className="flex flex-col gap-5 mt-2">
-          <Field label="Invite code" hint="6 characters, from whoever made the circle.">
+          <Field label="Invite code">
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
@@ -59,9 +59,6 @@ export default function CircleJoin() {
           </Field>
           <ErrorText>{error}</ErrorText>
           <Button title="Join circle" size="lg" loading={busy} disabled={code.length !== 6 || busy} onClick={submit} />
-          <Txt variant="footnote" tone="tertiary" align="center">
-            You will see the members' presents and they will see yours, even if you are not friends yet.
-          </Txt>
         </div>
       </Main>
     </Screen>

@@ -48,7 +48,7 @@ export default function FriendsShare() {
             {url}
           </Txt>
           <Txt variant="subhead" tone="secondary" className="mt-4 max-w-[300px]">
-            Anyone who opens this sends you a friend request. Their schedule stays theirs.
+            Anyone who opens this sends you a friend request.
           </Txt>
         </div>
         <div className="flex flex-col gap-2 mt-8">

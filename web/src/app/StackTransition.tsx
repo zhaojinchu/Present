@@ -3,11 +3,12 @@
 //   screens slide in that direction; a tab-bar tap still crossfades. Touches that start inside a
 //   horizontal scroller or a [data-swipe-ignore] element (the together deck) are left alone, and a
 //   gesture that starts vertical stays a scroll.
-//   Pushed screens: slide in from the right and out to the right; a swipe from the left edge pops
-//   them, the way iOS does.
+//   Pushed screens: a push slides the new screen in from the right while the old one recedes; a pop
+//   slides the top screen out to the right while the one beneath comes back. A swipe from the left
+//   edge pops, the way iOS does.
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, type TouchEvent } from 'react';
-import { useLocation, useNavigate, useOutlet } from 'react-router';
+import { useLocation, useNavigate, useNavigationType, useOutlet } from 'react-router';
 
 const TAB_ORDER = ['/', '/today', '/you'];
 const TAB_PATHS = new Set(TAB_ORDER);
@@ -38,6 +39,9 @@ export function StackTransition() {
   const capture = location.pathname.startsWith('/post/');
   const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const swipeDir = (location.state as TabSwipeState)?.tabSwipe ?? 0;
+  const navType = useNavigationType();
+  // 1 = going deeper, -1 = coming back. Both the entering and the exiting screen read it.
+  const custom = { tab: swipeDir, push: navType === 'POP' ? -1 : 1 };
   const gesture = useRef<Gesture | null>(null);
 
   const onTouchStart = (e: TouchEvent) => {
@@ -90,22 +94,25 @@ export function StackTransition() {
 
   // Tab screens: crossfade on a tap, slide on a swipe (`custom` carries the direction to the
   // exiting screen as well). Pushed screens: the iOS push.
+  type Custom = { tab: number; push: number };
   const tabVariants = {
-    initial: (dir: number) => (reduce ? { opacity: 0 } : dir ? { x: dir > 0 ? '100%' : '-100%', opacity: 1 } : { opacity: 0 }),
-    animate: { x: 0, opacity: 1 },
-    exit: (dir: number) => (reduce ? { opacity: 0 } : dir ? { x: dir > 0 ? '-100%' : '100%', opacity: 1 } : { opacity: 0 }),
+    initial: ({ tab: dir }: Custom) => (reduce ? { opacity: 0 } : dir ? { x: dir > 0 ? '100%' : '-100%', opacity: 1 } : { opacity: 0 }),
+    animate: { x: 0, opacity: 1, zIndex: 1 },
+    exit: ({ tab: dir }: Custom) => (reduce ? { opacity: 0 } : dir ? { x: dir > 0 ? '-100%' : '100%', opacity: 1 } : { opacity: 0 }),
   };
   const pushVariants = {
-    initial: reduce ? { opacity: 0 } : { x: '100%' },
-    animate: { x: 0, opacity: 1 },
-    exit: reduce ? { opacity: 0 } : { x: '100%' },
+    // Entering: from the right on a push; from slightly behind on a pop.
+    initial: ({ push }: Custom) => (reduce ? { opacity: 0 } : push > 0 ? { x: '100%', opacity: 1, zIndex: 2 } : { x: '-24%', opacity: 0.85, zIndex: 0 }),
+    animate: ({ push }: Custom) => ({ x: 0, opacity: 1, zIndex: push > 0 ? 2 : 0 }),
+    // Exiting: recede on a push; slide out to the right on a pop.
+    exit: ({ push }: Custom) => (reduce ? { opacity: 0 } : push > 0 ? { x: '-24%', opacity: 0.85, zIndex: 0 } : { x: '100%', opacity: 1, zIndex: 2 }),
   };
 
   return (
-    <AnimatePresence mode="popLayout" initial={false} custom={swipeDir}>
+    <AnimatePresence mode="popLayout" initial={false} custom={custom}>
       <motion.div
         key={isTab ? `tab:${location.pathname}` : location.pathname}
-        custom={swipeDir}
+        custom={custom}
         className="absolute inset-0 flex flex-col bg-bg"
         variants={isTab ? tabVariants : pushVariants}
         initial="initial"

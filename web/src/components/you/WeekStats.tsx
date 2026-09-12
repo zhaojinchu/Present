@@ -4,9 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { IoFlame } from 'react-icons/io5';
 import { getStats, type UserStats } from '@/lib/api/presence';
 import { useAppState } from '@/lib/appState';
+import { ProfileLink } from '@/components/ProfileLink';
 import { Avatar, Card, cx, Skeleton, Stat, Txt } from '@/ui';
 
 export const STATS_KEY = ['stats'] as const;
+type LiveMap = Map<string, { display_name: string; avatar_url: string | null; username: string }>;
 
 function pct(n: number, d: number): number | null {
   return d > 0 ? Math.round((100 * n) / d) : null;
@@ -24,6 +26,12 @@ export function WeekStats({ className }: { className?: string }) {
   if (q.isPending) return <Skeleton className={cx('h-40', className)} />;
   if (!q.data) return null;
   const me = q.data.me;
+  // Names and photos come from the live state, never from the stats snapshot.
+  const people: LiveMap = new Map();
+  if (state.data) {
+    people.set(state.data.me.id, state.data.me);
+    for (const f of state.data.friends) people.set(f.id, f);
+  }
   const made = me.week_on_time + me.week_late;
   const total = me.week_total + me.week_upcoming;
   const onTime = pct(me.week_on_time, me.week_on_time + me.week_late + me.week_missed);
@@ -67,13 +75,13 @@ export function WeekStats({ className }: { className?: string }) {
         <Stat size="sm" value={me.term_posted} label="Presents this term" />
       </div>
 
-      {q.data.friends.length > 0 ? <FriendsWeek me={me} friends={q.data.friends} /> : null}
+      {q.data.friends.length > 0 ? <FriendsWeek me={me} friends={q.data.friends} people={people} /> : null}
     </Card>
   );
 }
 
 /** Everyone ranked by classes made this week, with me highlighted. */
-function FriendsWeek({ me, friends }: { me: UserStats; friends: UserStats[] }) {
+function FriendsWeek({ me, friends, people }: { me: UserStats; friends: UserStats[]; people: LiveMap }) {
   const rows = [...friends, me]
     .map((u) => ({ ...u, made: u.week_on_time + u.week_late, of: u.week_total + u.week_upcoming }))
     .sort((a, b) => b.made - a.made || b.week_on_time - a.week_on_time || (a.display_name ?? '').localeCompare(b.display_name ?? ''));
@@ -84,20 +92,22 @@ function FriendsWeek({ me, friends }: { me: UserStats; friends: UserStats[] }) {
       </Txt>
       {rows.map((u, i) => {
         const isMe = u.id === me.id;
+        const live = people.get(u.id);
+        const name = live?.display_name ?? u.display_name ?? '?';
         return (
-          <div key={u.id} className="flex items-center gap-3 h-9">
+          <ProfileLink key={u.id} username={live?.username ?? u.username} label={name} className="flex items-center gap-3 h-9 w-full">
             <Txt variant="footnote" tone="tertiary" tabular className="w-4 text-right">
               {i + 1}
             </Txt>
-            <Avatar name={u.display_name ?? '?'} src={u.avatar_url ?? null} size={24} />
+            <Avatar name={name} src={live?.avatar_url ?? u.avatar_url ?? null} size={24} />
             <Txt variant="subhead" weight={isMe ? 600 : 400} className="flex-1 min-w-0" lines={1}>
-              {isMe ? 'You' : u.display_name}
+              {isMe ? 'You' : name}
             </Txt>
             <Txt variant="subhead" tone={isMe ? 'primary' : 'secondary'} tabular>
               {u.made}
               <span className="text-text-tertiary"> / {u.of}</span>
             </Txt>
-          </div>
+          </ProfileLink>
         );
       })}
     </div>

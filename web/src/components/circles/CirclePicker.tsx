@@ -57,7 +57,7 @@ export function CirclePicker({ circles, value, onChange }: { circles: Group[]; v
         </GroupList>
         {circles.length === 0 ? (
           <Txt variant="footnote" tone="secondary" className="mt-3">
-            A circle is a private set of friends with one streak and one set of stakes. Make one and only their presents show here.
+            Make a circle and only its presents show here.
           </Txt>
         ) : null}
         <Button

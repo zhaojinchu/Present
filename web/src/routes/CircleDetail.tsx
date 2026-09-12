@@ -152,9 +152,6 @@ export default function CircleDetail() {
             <Txt variant="title" tabular style={{ letterSpacing: 4 }}>
               {g.invite_code}
             </Txt>
-            <Txt variant="footnote" tone="secondary" lines={1}>
-              Anyone with the code can join, friend or not.
-            </Txt>
           </div>
           <Button title="Copy" variant="secondary" size="sm" icon={IoCopyOutline} onClick={share} />
         </div>

@@ -1,7 +1,6 @@
 // Circles (called "groups" in the database and in get_state().groups; the UI says circle everywhere):
-// the zod contract for the `groups` and `shared_courses` parts of get_state(), and the pure helpers
-// screens use (roll call, standings, forfeit and vote lookups). The backend owns the numbers; nothing
-// here reaches Supabase.
+// the zod contract for the `groups` part of get_state(), and the pure helpers screens use (roll call,
+// standings, forfeit and vote lookups). The backend owns the numbers; nothing here reaches Supabase.
 import { z } from 'zod';
 import { phaseOf, type Phase } from './phase';
 import type { FeedEvent, Occurrence } from './types';
@@ -82,13 +81,6 @@ export const Group = z.object({
   excused_miss_ids: z.array(uuid),
 });
 export type Group = z.infer<typeof Group>;
-
-export const SharedCourse = z.object({
-  course_code: z.string(),
-  name: z.string().nullable(),
-  user_ids: z.array(uuid),
-});
-export type SharedCourse = z.infer<typeof SharedCourse>;
 
 // ---------------------------------------------------------------- helpers
 

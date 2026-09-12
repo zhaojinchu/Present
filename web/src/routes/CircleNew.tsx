@@ -77,9 +77,6 @@ export default function CircleNew() {
             <Txt variant="footnote" tone="secondary" weight={600}>
               Stakes
             </Txt>
-            <Txt variant="footnote" tone="tertiary" className="-mt-1">
-              What a miss costs. The app keeps score; the circle collects.
-            </Txt>
             <div className="flex gap-2 flex-wrap">
               {FORFEIT_PRESETS.map((p) => (
                 <Chip key={p} label={p} selected={stake === p} onClick={() => setStake(p)} />
@@ -111,7 +108,7 @@ export default function CircleNew() {
             </div>
           ) : (
             <Txt variant="footnote" tone="tertiary">
-              Add friends first and they will show up here, or share the circle code after creating it.
+              No friends yet. Share the code after creating it.
             </Txt>
           )}
 

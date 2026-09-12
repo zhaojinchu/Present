@@ -215,14 +215,12 @@ await test('co-members see each other; friends stay friends-only; RLS on the tab
   assert.ok(seen.has(alex) && seen.has(sam), "co-members' classes are visible");
   assert.ok(!seen.has(priya), 'priya is in no group with the outsider');
   assert.equal(s.groups.length, 1);
-  assert.deepEqual(s.shared_courses, [], 'suggestions only count friends');
 
   await as(alex);
   s = await state();
   assert.deepEqual(s.friends.map((f: Row) => f.username).sort(), ['priya', 'sam'], 'no co-member in the friends list');
   assert.ok(s.today_occurrences.some((o: Row) => o.user_id === out), 'but their classes show');
   assert.equal(s.groups.length, 2);
-  assert.deepEqual(s.shared_courses, [{ course_code: '15-122', name: 'Imperative Computation', user_ids: [sam] }]);
 
   await q(`set role authenticated`);
   await as(out);

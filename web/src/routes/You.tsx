@@ -1,7 +1,7 @@
 // /you — my profile: streak, best, posts, memories grid, friends, schedule, settings.
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
-import { IoCalendarOutline, IoFlame, IoFlameOutline, IoPeopleCircleOutline, IoPeopleOutline, IoQrCodeOutline, IoSettingsOutline } from 'react-icons/io5';
+import { IoCalendarOutline, IoPeopleCircleOutline, IoPeopleOutline, IoQrCodeOutline, IoSettingsOutline } from 'react-icons/io5';
 import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { PostMedia } from '@/components/feed/PostMedia';
@@ -10,7 +10,7 @@ import { getMemories } from '@/lib/api/post';
 import { useAppState, useFriends, useMe } from '@/lib/appState';
 import { env } from '@/lib/config';
 import { fmtDate } from '@/lib/time';
-import { Avatar, Group, IconButton, ListRow, Skeleton, Stat, Txt } from '@/ui';
+import { Avatar, Group, IconButton, ListRow, Skeleton, Txt } from '@/ui';
 
 export default function You() {
   const me = useMe();
@@ -19,7 +19,6 @@ export default function You() {
   const navigate = useNavigate();
   const taps = useRef(0);
   const memories = useQuery({ queryKey: ['memories'], queryFn: getMemories, enabled: !!me, staleTime: 30_000 });
-  const alive = (me?.streak ?? 0) > 0;
 
   const onAvatarTap = () => {
     if (!env.devPanel) return;
@@ -48,11 +47,6 @@ export default function You() {
                 </Txt>
               </span>
             </button>
-            <div className="flex gap-6 mt-5">
-              <Stat size="lg" value={me.streak} label={alive ? 'Day streak' : 'Streak lost'} icon={alive ? IoFlame : IoFlameOutline} iconClassName={alive ? 'text-ember' : 'text-danger'} tone={alive ? 'primary' : 'danger'} />
-              <Stat value={me.best_streak} label="Best" />
-              <Stat value={me.posts_count} label="Presents" />
-            </div>
           </>
         ) : (
           <Skeleton className="h-24" />
@@ -62,7 +56,7 @@ export default function You() {
 
         <Group className="mt-6">
           <ListRow leading={<IoPeopleOutline size={20} className="text-text-secondary" />} title="Friends" subtitle={requests.incoming.length > 0 ? `${requests.incoming.length} request${requests.incoming.length > 1 ? 's' : ''} waiting` : `${friends.length} friend${friends.length === 1 ? '' : 's'}`} onClick={() => navigate('/friends')} />
-          <ListRow leading={<IoPeopleCircleOutline size={20} className="text-text-secondary" />} title="Circles" subtitle={groups.length > 0 ? groups.map((g) => g.name).join(', ') : 'Who you answer to'} onClick={() => navigate('/circles')} />
+          <ListRow leading={<IoPeopleCircleOutline size={20} className="text-text-secondary" />} title="Circles" subtitle={groups.length > 0 ? groups.map((g) => g.name).join(', ') : undefined} onClick={() => navigate('/circles')} />
           <ListRow leading={<IoQrCodeOutline size={20} className="text-text-secondary" />} title="Share my link" onClick={() => navigate('/friends/share')} />
           <ListRow leading={<IoCalendarOutline size={20} className="text-text-secondary" />} title="Schedule" subtitle={me ? `${me.class_count} class${me.class_count === 1 ? '' : 'es'}` : undefined} onClick={() => navigate('/schedule')} />
         </Group>
@@ -91,7 +85,7 @@ export default function You() {
           </Txt>
         )}
         <Txt variant="footnote" tone="tertiary" className="mt-3 mb-8">
-          Friends see your photos for a day. You keep them for 30. No location is ever stored on a post.
+          Presents are kept for 30 days.
         </Txt>
       </Main>
     </Screen>

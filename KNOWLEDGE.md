@@ -294,6 +294,74 @@ arms at 64 px, holds at 56 px while `invalidate()` runs, min 500 ms; `refresh={f
 Today: "Show N earlier" / "Show N more" toggle back to "Hide earlier" / "Show less". The circle strip in
 the feed and the roll-call collapse were handed to present-bb with the user's wording.
 
+**Stage 7 tidy (12 Sep 2026 ~13:20).** User: the circle banner on the feed was "too much information" and roll
+call needed a fold. Feed strip with a circle selected is now one 56px row (emoji, name, one footnote line:
+the class that matters now as "15-122 now · 2 of 4 present" / "21-241 at 9:30 · 2 of you" / "… made it",
+else "21 of 29 this week"; streak chip; chevron) and it replaces the LiveRow while a circle is selected, so
+the first post's photo is mostly on screen at phone height. `RollCall` folds to the session that matters now
+(`rankRollCall` / `sessionPhase` / `presentCount` in `lib/groups.ts`) with "Show N more classes" / "Show
+less", no inner scroll. Haptics from the peer's `lib/haptics.ts`: light on deck paging, light on tap and
+success/error on vote, vouch and paid. Mock gained `occ-priya-241` so the fold has something to hide.
+Copy pass (~13:50, user: "remove the grey background behind the text… remove any filler text"): the circle
+verdict under a miss is no longer a grey box; the streak label is just "Circle streak" / "Streak lost";
+the Circles intro paragraph, invite-code footnote, join hints, stakes explainer and "no verdict yet" line
+are gone; `SharedCourse` / `shared_courses` removed from `lib/groups.ts`, `types.ts` and the mock (the
+peer dropped it from get_state). Mock note: the fixture's 15-122 is always open, so the feed and circle
+routes show the lock screen in mock mode even with a dev clock offset; screenshot Today or edit the fixture.
+
+**In-class lock and push/pop transitions (12 Sep 2026 ~14:40).** Product decision: while one of my
+classes is open or late and unposted, the app is for posting, not browsing. `web/src/lib/lock.ts`
+(`useInClassLock(nowMs)`: first of my occurrences in phase open, else late; `lockAllows(pathname)`: /today,
+/post/*, /explain/*, /settings, /dev, /schedule*, /sign-in, /sign-up, /add/* stay reachable),
+`web/src/app/LockGate.tsx` (sits where StackTransition was in RootLayout; ticks every 5 s; renders
+`components/LockScreen.tsx` for any other route; toggles `body.app-locked`, which `app.css` paints with
+`filter: grayscale(1)` and a 480 ms transition, lifted on the camera route so the preview is in colour;
+sheets are in portals under body so they go grey too). The lock screen is the Present header, a lock disc,
+"You're in 15-122 / Present first. The feed unlocks the moment you do." (late variant), the full PromptCard,
+and "Everything stays grey until then." The open and late PromptCards gained a tertiary "Can't make it"
+(the public reason sheet) so there is an honest way out; posting, excusing, or the deadline lifts the lock.
+Push/pop fix in `StackTransition.tsx`: `useNavigationType()` decides the direction; a push slides the new
+screen in from the right over the old one receding 24 %, a pop slides the top screen out to the right with
+the one beneath coming back (zIndex in the variants); `custom` is now `{ tab, push }`. This fixed the odd
+"+ New circle" animation where both screens moved right.
+
+**Live profiles on feed events, cleaner copy (12 Sep 2026 ~15:10).** `20260913000015_live_profiles.sql`
+replaces `get_state()` once more: every feed event's payload is overlaid with the actor's current
+display_name, username and avatar_url (payloads are still written once with `profile_json`, so old posts
+used to keep the old photo), and `shared_courses` is gone from get_state (the client field has a default;
+`SharedCourse` in lib/groups.ts is now unused). Copy: the capture-preview caption sits straight on the
+photo (transparent, centred, text shadow) instead of in a translucent box; the excused line shows the reason
+as plain secondary text, no Quote box, no "Streak stays."; the excused PromptCard is just its header; the
+late card says "Doesn't count for your streak."; closed says "Window closed. Say why, or it counts as a
+miss."; the lock screen, Explain, You and Share lost their footnotes.
+
+**Any-emoji reactions, leaner You (12 Sep 2026 ~15:40).** `ReactionBar` no longer has a preset row:
+pills come from the reactions that exist (grouped by emoji, count, mine in ember), and a smiley button opens
+a 16 px text input (no Safari zoom) where the system keyboard's emoji board supplies the reaction;
+`firstEmoji()` takes the first grapheme that is Extended_Pictographic or a regional indicator, at most 8
+code points (the server's limit), letters are ignored. `REACTION_EMOJI` / `ReactionEmoji` left config.ts.
+You: the big streak / best / presents row between the avatar and the "This week" card is gone (the card
+already shows them); the only footnote is "Presents are kept for 30 days."
+
+**Profile links everywhere, live photos in the leaderboard (12 Sep 2026 ~16:00).** `get_stats()` returns
+`me` without a name or photo, so the "Among friends" rows in `components/you/WeekStats.tsx` showed a "?"
+avatar for me and a stats-time snapshot for friends; the rows now take display_name, username and
+avatar_url from the live state (`me` and `friends` in get_state) and each row is a `ProfileLink`.
+`components/ProfileAvatarStack.tsx` is the clickable twin of `AvatarStack` (each face opens /u/:username);
+used in the TogetherDeck header ("Sam and Priya are in 15-122") and the PromptCard "N friends posted" line.
+`CircleCard` and `PostSuccess` still use the plain stack on purpose (a summary, and a screen that
+auto-closes). The web build runs `tsc -b` first, so a type error stops the deploy rather than shipping.
+
+**The blocker (12 Sep 2026 ~16:30).** The lock screen is now a full-screen single-colour page,
+`components/LockScreen.tsx`: `#1C1C1F` ground, `#F2F2F5` text, no header, no tab bar; "IN CLASS" (or
+"LATE"), the course code at 40 px, "Present to unlock." (late: "Present late to unlock."), a live
+countdown line, one white "Present" button (slow `.lock-pulse` scale, off under reduced motion) and a
+quiet "Can't make it" text link that opens the shared `components/today/ExcuseSheet.tsx` (extracted from
+PromptCard, which now uses it too). `lib/lock.ts` ALLOWED shrank to /post/*, /explain/*, /dev, auth and
+/add/*, so Today, Settings and Schedule are blocked as well while a window is open; the dev panel stays
+reachable for the demo. Body grayscale still applies underneath (irrelevant on the dark page, needed for
+sheets). Dark page into the dark camera reads as one flow.
+
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =
 design session if it continues; otherwise this session. Shared: `web/src/lib/types.ts`, `KNOWLEDGE.md`.

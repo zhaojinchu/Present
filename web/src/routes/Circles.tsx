@@ -3,7 +3,7 @@ import { IoAdd, IoEnterOutline, IoPeopleCircleOutline } from 'react-icons/io5';
 import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { useAppState } from '@/lib/appState';
-import { Button, EmptyState, Group as GroupList, IconButton, ListRow, StreakChip, Txt } from '@/ui';
+import { Button, EmptyState, Group as GroupList, IconButton, ListRow, StreakChip } from '@/ui';
 import { BackButton } from './_Stub';
 
 export default function Circles() {
@@ -15,14 +15,10 @@ export default function Circles() {
     <Screen>
       <Header title="Circles" left={<BackButton />} right={<IconButton icon={IoAdd} label="New circle" tone="plain" onClick={() => navigate('/circles/new')} />} />
       <Main>
-        <Txt variant="subhead" tone="secondary" className="mt-1 mb-4">
-          Friends are who you follow. A circle is who you answer to: a private set of friends with one streak, one set of stakes, and everyone's presents in one place.
-        </Txt>
-
         {groups.length === 0 ? (
-          <EmptyState icon={IoPeopleCircleOutline} title="No circles yet" message="Make one and invite the friends you want on the hook with you." />
+          <EmptyState icon={IoPeopleCircleOutline} title="No circles yet" message="One streak, one set of stakes, for the friends you pick." />
         ) : (
-          <GroupList>
+          <GroupList className="mt-2">
             {groups.map((g) => (
               <ListRow
                 key={g.id}

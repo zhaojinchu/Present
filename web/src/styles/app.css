@@ -159,3 +159,24 @@
     box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
   }
 }
+
+/* The in-class lock: the whole app goes monochrome until you post. Photos, flame, reactions,
+   everything; the camera route lifts it (LockGate). */
+body {
+  transition: filter 480ms ease;
+}
+body.app-locked {
+  filter: grayscale(1);
+}
+
+/* The lock screen's one button breathes. */
+@keyframes lock-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025); }
+}
+.lock-pulse {
+  animation: lock-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lock-pulse { animation: none; }
+}

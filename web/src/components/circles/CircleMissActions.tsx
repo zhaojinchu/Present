@@ -52,11 +52,11 @@ function Summary({ missId, group: g, meId }: { missId: string; group: Group; meI
   else if (m.forfeit?.status === 'paid') parts.push('paid up');
   if (m.fair + m.unfair > 0) parts.push(`${m.fair} fair · ${m.unfair} not`);
   if (m.vouchers.length > 0) parts.push(`vouched`);
+  if (parts.length === 0) return null;
   return (
     <button type="button" onClick={() => navigate(`/circles/${g.id}`)} className="text-left">
       <Txt variant="footnote" tone="secondary" lines={1}>
-        <span className="font-semibold text-text">{groupLabel(g)}</span>
-        {parts.length > 0 ? ` · ${parts.join(' · ')}` : ' · no verdict yet'}
+        <span className="font-semibold text-text">{groupLabel(g)}</span> · {parts.join(' · ')}
       </Txt>
     </button>
   );
@@ -89,7 +89,7 @@ function Actions({ missId, actorId, group: g, meId, className }: { missId: strin
   };
 
   return (
-    <div className={cx('bg-surface rounded-md p-3 flex flex-col gap-2', className)}>
+    <div className={cx('flex flex-col gap-2', className)}>
       <div className="flex items-center justify-between gap-2">
         <Txt variant="footnote" tone="tertiary" lines={1}>
           {groupLabel(g)}
@@ -139,8 +139,8 @@ function Actions({ missId, actorId, group: g, meId, className }: { missId: strin
       ) : null}
 
       {isMisser && !m.excused ? (
-        <Txt variant="footnote" tone="secondary">
-          {m.fair} of {m.needed} needed say fair enough{m.unfair > 0 ? ` · ${m.unfair} not buying it` : ''}. A vouch from anyone clears it.
+        <Txt variant="footnote" tone="secondary" tabular>
+          {m.fair} of {m.needed} say fair enough{m.unfair > 0 ? ` · ${m.unfair} not buying it` : ''}
         </Txt>
       ) : null}
 

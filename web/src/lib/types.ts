@@ -2,7 +2,7 @@
 // with zod at the boundary so a backend change fails loudly in one place. Screens import the
 // inferred types; they never reach for Supabase rows directly.
 import { z } from 'zod';
-import { Group, SharedCourse } from './groups';
+import { Group } from './groups';
 
 export const OccurrenceStatus = z.enum(['pending', 'posted', 'missed', 'excused']);
 export type OccurrenceStatus = z.infer<typeof OccurrenceStatus>;
@@ -177,9 +177,8 @@ export const AppState = z.object({
   feed: z.array(FeedEvent),
   reactions: z.array(Reaction),
   comments: z.array(Comment),
-  // Groups (contract in ./groups.ts). Optional with defaults so an older backend still parses.
+  // Circles (contract in ./groups.ts). Defaulted so an older backend still parses.
   groups: z.array(Group).default([]),
-  shared_courses: z.array(SharedCourse).default([]),
 });
 export type AppState = z.infer<typeof AppState>;
 

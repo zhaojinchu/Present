@@ -17,7 +17,7 @@ export function Stakes({ group: g, meId, nowMs, className }: { group: Group; meI
   if (!g.forfeit_text) {
     return (
       <Txt variant="footnote" tone="tertiary" className={className}>
-        No stakes in this circle. Whoever made it can set one, like "buys everyone boba".
+        No stakes in this circle.
       </Txt>
     );
   }
@@ -28,7 +28,7 @@ export function Stakes({ group: g, meId, nowMs, className }: { group: Group; meI
       </Txt>
       {owed.length === 0 ? (
         <Txt variant="footnote" tone="tertiary">
-          Nobody owes anything right now.
+          Nobody owes anything.
         </Txt>
       ) : (
         <div className="bg-surface rounded-lg overflow-hidden">

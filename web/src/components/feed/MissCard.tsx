@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router';
 import { ProfileLink } from '@/components/ProfileLink';
 import { fmtTime, relative } from '@/lib/time';
 import type { Comment, FeedEvent, Reaction } from '@/lib/types';
-import { Avatar, Badge, Button, Icon, Quote, Stat, Strong, Txt } from '@/ui';
+import { Avatar, Badge, Button, Icon, Stat, Strong, Txt } from '@/ui';
 import { CommentPreview } from './CommentPreview';
 import { ReactionBar } from './ReactionBar';
 
@@ -97,18 +97,11 @@ export function ExcusedLine({ event, nowMs }: { event: FeedEvent; nowMs: number 
           {p.starts_at ? <span className="text-text-secondary"> at {fmtTime(p.starts_at)}</span> : null}
         </Txt>
         {p.reason ? (
-          <Quote className="mt-2">
-            <Txt variant="subhead" className="selectable">
-              {p.reason}
-            </Txt>
-          </Quote>
-        ) : null}
-        <div className="flex items-center gap-2 mt-2">
-          <Badge label="Excused" tone="info" icon={IoMedkitOutline} />
-          <Txt variant="footnote" tone="secondary">
-            Streak stays.
+          <Txt variant="subhead" tone="secondary" className="mt-0.5 selectable" lines={3}>
+            {p.reason}
           </Txt>
-        </div>
+        ) : null}
+        <Badge label="Excused" tone="info" icon={IoMedkitOutline} className="mt-2" />
       </div>
       <Txt variant="footnote" tone="tertiary" className="shrink-0 pt-0.5">
         {relative(event.created_at, nowMs)}

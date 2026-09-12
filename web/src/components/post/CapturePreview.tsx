@@ -54,7 +54,8 @@ export function CapturePreview({
           placeholder="Add a caption"
           maxLength={CAPTION_MAX}
           disabled={uploading}
-          className="w-full h-[var(--input)] rounded-md px-4 bg-[rgba(255,255,255,0.14)] text-capture-text placeholder:text-capture-text-secondary outline-none"
+          className="w-full h-[var(--input)] px-1 bg-transparent text-capture-text text-headline text-center placeholder:text-capture-text-secondary placeholder:font-normal outline-none"
+          style={{ textShadow: '0 1px 8px rgba(0,0,0,.7)' }}
         />
         {error ? (
           <Txt variant="footnote" tone="danger" className="mt-2">
