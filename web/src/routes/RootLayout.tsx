@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { StackTransition } from '@/app/StackTransition';
-import { NudgeBanner } from '@/components/NudgeBanner';
 import { sendFriendRequest } from '@/lib/api/social';
 import { useAppState, useRealtimeInvalidation, useSession } from '@/lib/appState';
 import { env } from '@/lib/config';
@@ -73,7 +72,6 @@ export default function RootLayout() {
   }
   return (
     <div className="relative flex-1 min-h-0">
-      {userId ? <NudgeBanner /> : null}
       <StackTransition />
     </div>
   );

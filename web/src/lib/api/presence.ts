@@ -1,35 +1,7 @@
-// Heading out, nudges and weekly stats. Every write is an RPC; the database re-checks auth.uid(),
-// friendship and the class window. Mock mode resolves without a backend.
+// Weekly stats from get_stats(). Mock mode serves numbers derived from the fixture.
 import { z } from 'zod';
 import { env } from '../config';
 import { supabase } from '../supabase';
-
-export interface HeadOutResult {
-  event_id: string;
-  already: boolean;
-}
-
-/** "Leaving now" for one of my pending classes (allowed from 45 min before until the deadline). */
-export async function headOut(occurrenceId: string): Promise<HeadOutResult> {
-  if (env.mockState) {
-    await new Promise((r) => setTimeout(r, 250));
-    return { event_id: 'mock-heading-out', already: false };
-  }
-  const { data, error } = await supabase.rpc('head_out', { p_occurrence_id: occurrenceId });
-  if (error) throw error;
-  return data as HeadOutResult;
-}
-
-/** Poke a friend whose class is open and who has not posted. Once per friend per class. */
-export async function nudge(occurrenceId: string): Promise<{ event_id: string }> {
-  if (env.mockState) {
-    await new Promise((r) => setTimeout(r, 250));
-    return { event_id: 'mock-nudge' };
-  }
-  const { data, error } = await supabase.rpc('nudge', { p_occurrence_id: occurrenceId });
-  if (error) throw error;
-  return data as { event_id: string };
-}
 
 // ---------------------------------------------------------------- stats
 

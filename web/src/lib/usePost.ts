@@ -7,7 +7,7 @@ import { errorMessage } from './supabase';
 import type { Occurrence } from './types';
 
 export type PostStage =
-  | 'idle' // waiting for the tap that starts the camera (Safari needs a gesture)
+  | 'idle' // mounted, the camera starts by itself as soon as the class is known
   | 'starting'
   | 'front' // live front camera
   | 'flipping' // front frame frozen, switching to the back camera
@@ -106,7 +106,9 @@ export function usePost(occurrence: Occurrence | null, userId: string | null) {
       const ok = await waitForVideo(v);
       setFacing(mode);
       return ok;
-    } catch {
+    } catch (e) {
+      const name = (e as { name?: string } | null)?.name;
+      if (name === 'NotAllowedError' || name === 'SecurityError') setError('Camera access is off for Present. Allow it in Settings, or choose a photo.');
       return false;
     }
   }, [stopStream]);
@@ -142,6 +144,15 @@ export function usePost(occurrence: Occurrence | null, userId: string | null) {
     const ok = await attach('user');
     setStage(ok ? 'front' : 'unavailable');
   }, [attach]);
+
+  // No "tap to start": the camera opens on its own once the class is known and the video element
+  // is mounted. Runs once; "Try again" calls start() by hand after that.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!occurrence || autoStarted.current || stage !== 'idle') return;
+    autoStarted.current = true;
+    void start();
+  }, [occurrence, stage, start]);
 
   const shoot = useCallback(async () => {
     const v = videoRef.current;

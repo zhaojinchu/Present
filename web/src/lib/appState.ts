@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildMockState, MOCK_ME_ID } from '@/mock/state';
+import { prefetchSignedUrls } from './api/post';
 import { setServerTime } from './clock';
 import { env, STATE_POLL_DEGRADED_MS, STATE_POLL_MS } from './config';
 import { focusOccurrence, phaseOf } from './phase';
@@ -59,7 +60,13 @@ async function fetchState(): Promise<AppState> {
     throw new Error('The server sent something this version of the app does not understand.');
   }
   setServerTime(parsed.data.server_time);
-  return parsed.data;
+  // Sign every photo the state mentions in one request so the cards render without waiting.
+  const state = parsed.data;
+  prefetchSignedUrls([
+    ...state.feed.flatMap((e) => [e.payload.photo_path, e.payload.photo_back_path]),
+    ...state.today_occurrences.flatMap((o) => [o.post?.photo_path, o.post?.photo_back_path]),
+  ]);
+  return state;
 }
 
 let live = true;

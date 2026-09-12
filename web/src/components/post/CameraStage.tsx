@@ -1,6 +1,6 @@
 // The capture screen: full-bleed camera in the dark capture palette, shutter like the system
 // camera, course and countdown at the top, and the fallbacks when the camera is not available.
-import { IoCameraOutline, IoClose, IoImagesOutline } from 'react-icons/io5';
+import { IoClose, IoImagesOutline } from 'react-icons/io5';
 import type { PostStage } from '@/lib/usePost';
 import { fmtCountdown } from '@/lib/time';
 import { Button, cx, Icon, IconButton, Spinner, Txt } from '@/ui';
@@ -69,20 +69,7 @@ export function CameraStage({
 
       {/* centre states */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 text-center">
-        {stage === 'idle' ? (
-          <button type="button" onClick={onStart} className="pressable flex flex-col items-center gap-3">
-            <span className="w-20 h-20 rounded-full bg-capture-surface-raised flex items-center justify-center text-capture-text">
-              <Icon icon={IoCameraOutline} size={32} />
-            </span>
-            <Txt variant="headline" tone="capture">
-              Tap to start the camera
-            </Txt>
-            <Txt variant="footnote" tone="captureSecondary">
-              Front first, then the room.
-            </Txt>
-          </button>
-        ) : null}
-        {stage === 'starting' ? <Spinner size={28} className="text-capture-text" /> : null}
+        {stage === 'idle' || stage === 'starting' ? <Spinner size={28} className="text-capture-text" /> : null}
         {stage === 'flipping' ? (
           <Txt variant="subhead" tone="capture" style={{ textShadow: '0 1px 8px rgba(0,0,0,.6)' }}>
             Now the room…
@@ -91,7 +78,7 @@ export function CameraStage({
         {stage === 'unavailable' || stage === 'error' ? (
           <div className="flex flex-col items-center gap-3 max-w-[320px]">
             <Txt variant="headline" tone="capture">
-              {stage === 'error' ? 'Something went wrong' : 'No camera here'}
+              {stage === 'error' ? 'Something went wrong' : error ? 'Camera unavailable' : 'No camera here'}
             </Txt>
             <Txt variant="subhead" tone="captureSecondary">
               {error ?? 'Use a photo from your library instead.'}
@@ -102,7 +89,7 @@ export function CameraStage({
                 <Icon icon={IoImagesOutline} size={18} /> Choose a photo
               </span>
             </label>
-            {stage === 'error' ? <Button title="Try again" variant="tertiary" onClick={onStart} className="text-capture-text-secondary" /> : null}
+            <Button title="Try again" variant="tertiary" onClick={onStart} className="text-capture-text-secondary" />
           </div>
         ) : null}
       </div>

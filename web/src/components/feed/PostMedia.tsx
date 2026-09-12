@@ -1,7 +1,7 @@
 // The photo unit: 3:4 main image with the second camera as a picture-in-picture inset in the
 // top-left corner, inside the main photo. Tap the inset to swap. Handles missing and loading photos.
 import { useEffect, useState } from 'react';
-import { usePhotoUrl } from '@/app/Photo';
+import { CachedImg, usePhotoUrl } from '@/app/Photo';
 import { cx, Skeleton, Txt } from '@/ui';
 
 export function PostMedia({
@@ -10,6 +10,7 @@ export function PostMedia({
   placeholder,
   className,
   rounded = 'rounded-xl',
+  eager = false,
 }: {
   mainPath: string | null | undefined;
   insetPath?: string | null;
@@ -17,6 +18,8 @@ export function PostMedia({
   placeholder?: string;
   className?: string;
   rounded?: string;
+  /** First item on screen: fetch at high priority instead of lazily. */
+  eager?: boolean;
 }) {
   const [swapped, setSwapped] = useState(false);
   useEffect(() => setSwapped(false), [mainPath, insetPath]);
@@ -24,7 +27,7 @@ export function PostMedia({
   const small = swapped && insetPath ? mainPath : insetPath;
   return (
     <div className={cx('relative overflow-hidden bg-surface-raised', rounded, className)} style={{ aspectRatio: '3 / 4' }}>
-      <Img path={big} placeholder={placeholder} />
+      <Img path={big} placeholder={placeholder} eager={eager} />
       {small ? (
         <button
           type="button"
@@ -40,7 +43,7 @@ export function PostMedia({
   );
 }
 
-function Img({ path, placeholder }: { path: string | null | undefined; placeholder?: string }) {
+function Img({ path, placeholder, eager = false }: { path: string | null | undefined; placeholder?: string; eager?: boolean }) {
   const url = usePhotoUrl(path);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setLoaded(false), [url]);
@@ -59,11 +62,10 @@ function Img({ path, placeholder }: { path: string | null | undefined; placehold
     <>
       {!loaded ? <Skeleton className="absolute inset-0 rounded-none" /> : null}
       {url ? (
-        <img
-          src={url}
-          alt=""
-          draggable={false}
-          onLoad={() => setLoaded(true)}
+        <CachedImg
+          url={url}
+          eager={eager}
+          onLoaded={() => setLoaded(true)}
           className={cx('absolute inset-0 w-full h-full object-cover transition-opacity duration-[var(--duration-base)]', loaded ? 'opacity-100' : 'opacity-0')}
         />
       ) : null}

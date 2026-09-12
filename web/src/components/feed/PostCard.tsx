@@ -16,6 +16,7 @@ export function PostCard({
   meId,
   nowMs,
   expired,
+  eager = false,
 }: {
   event: FeedEvent;
   reactions: Reaction[];
@@ -23,6 +24,8 @@ export function PostCard({
   meId: string | null;
   nowMs: number;
   expired: boolean;
+  /** First card on screen: its photo loads at high priority. */
+  eager?: boolean;
 }) {
   const p = event.payload;
   const navigate = useNavigate();
@@ -61,7 +64,7 @@ export function PostCard({
         </Txt>
       ) : (
         <div className="px-2 mt-3">
-          <PostMedia mainPath={p.photo_path} insetPath={p.photo_back_path} placeholder={p.course_code ?? 'No photo'} />
+          <PostMedia mainPath={p.photo_path} insetPath={p.photo_back_path} placeholder={p.course_code ?? 'No photo'} eager={eager} />
         </div>
       )}
 

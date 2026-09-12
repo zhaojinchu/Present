@@ -6,7 +6,6 @@ import { Header, Main, Screen } from '@/app/AppShell';
 import { FeedList } from '@/components/feed/FeedList';
 import { InstallHint } from '@/components/InstallHint';
 import { LiveRow } from '@/components/feed/LiveRow';
-import { NudgeRow } from '@/components/today/NudgeRow';
 import { PromptCard } from '@/components/today/PromptCard';
 import { useAppState, useFeed, useFriends, useToday } from '@/lib/appState';
 import { useNow } from '@/lib/clock';
@@ -35,7 +34,7 @@ export default function Feed() {
   return (
     <Screen tabs>
       <Header
-        title="Feed"
+        title="Present"
         large
         right={
           <span className="relative">
@@ -49,7 +48,6 @@ export default function Feed() {
         {focus && (focus.phase === 'open' || focus.phase === 'late') ? (
           <div className="mb-2">
             <PromptCard occurrence={focus.occurrence} phase={focus.phase} nowMs={now} friendsPosted={friendsPostedForFocus} compact />
-            <NudgeRow session={focus.occurrence} theirs={theirs.map((t) => t.occurrence)} events={events} meId={me?.id ?? null} nowMs={now} className="px-4 pt-3" />
           </div>
         ) : null}
         <LiveRow inClass={inClass} />

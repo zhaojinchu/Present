@@ -1,8 +1,5 @@
-// Pure helpers for the "before the miss" social layer: grouping posts from the same class into a
-// deck, who is heading to a class, and nudges aimed at me. No Supabase here; screens pass state in.
-import type { FeedEvent, Occurrence } from './types';
-
-const HOUR = 3_600_000;
+// Pure helpers for grouping posts from the same class session into a deck. No Supabase here.
+import type { FeedEvent } from './types';
 
 /** Same class session: same course, same start instant. */
 export function sameSession(a: { course_code?: string | null; starts_at?: string | null }, b: { course_code?: string | null; starts_at?: string | null }): boolean {
@@ -52,37 +49,6 @@ export function groupPosts(events: FeedEvent[]): FeedRow[] {
     rows.push({ kind: 'event', event: e });
   }
   return rows;
-}
-
-/** Friends who said "leaving now" for this class session, newest first, one per person. */
-export function headingOutFor(events: FeedEvent[], session: { course_code: string; starts_at: string }, nowMs: number): FeedEvent[] {
-  const seen = new Set<string>();
-  const out: FeedEvent[] = [];
-  for (const e of events) {
-    if (e.type !== 'heading_out') continue;
-    if (!sameSession(e.payload, session)) continue;
-    if (nowMs - Date.parse(e.created_at) > 3 * HOUR) continue;
-    if (seen.has(e.actor_id)) continue;
-    seen.add(e.actor_id);
-    out.push(e);
-  }
-  return out;
-}
-
-/** Have I already nudged this occurrence? */
-export function alreadyNudged(events: FeedEvent[], meId: string | null, occurrenceId: string): boolean {
-  return events.some((e) => e.type === 'nudge' && e.actor_id === meId && e.occurrence_id === occurrenceId);
-}
-
-/** Nudges aimed at me in the last 30 minutes, newest first. */
-export function nudgesForMe(events: FeedEvent[], meId: string | null, nowMs: number): FeedEvent[] {
-  if (!meId) return [];
-  return events.filter((e) => e.type === 'nudge' && e.payload.target_id === meId && nowMs - Date.parse(e.created_at) < 30 * 60_000);
-}
-
-/** Friends' occurrences for the same session as mine that are still pending (nudge candidates). */
-export function pendingFriendsFor(theirs: Occurrence[], session: { course_code: string; starts_at: string }): Occurrence[] {
-  return theirs.filter((o) => o.status === 'pending' && sameSession(o, session));
 }
 
 export function firstName(name: string | null | undefined): string {

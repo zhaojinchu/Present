@@ -8,7 +8,6 @@ import { fmtTime } from '@/lib/time';
 import { Button, EmptyState, Skeleton, Strong, Txt } from '@/ui';
 import { ExcusedLine, FriendsLine, MissCard } from './MissCard';
 import { PostCard } from './PostCard';
-import { HeadingOutLine, NudgeLine } from './PresenceLines';
 import { TogetherDeck } from './TogetherDeck';
 
 export function FeedList({
@@ -69,7 +68,7 @@ export function FeedList({
   const sections = groupByDay(events, nowMs);
   return (
     <div className="pb-4">
-      {sections.map((s) => (
+      {sections.map((s, si) => (
         <section key={s.key}>
           <Txt variant="label" tone="tertiary" className="px-4 pt-4 pb-1">
             {s.label}
@@ -83,7 +82,7 @@ export function FeedList({
             ) : (
               <div key={row.event.id}>
                 {i > 0 ? <div className="hairline mx-4" /> : null}
-                <FeedItem event={row.event} reactions={reactionsFor(reactions, row.event.id)} comments={commentsFor(comments, row.event.id)} meId={meId} nowMs={nowMs} unexplained={!!row.event.ref_id && unexplainedMissIds.has(row.event.ref_id)} />
+                <FeedItem event={row.event} reactions={reactionsFor(reactions, row.event.id)} comments={commentsFor(comments, row.event.id)} meId={meId} nowMs={nowMs} unexplained={!!row.event.ref_id && unexplainedMissIds.has(row.event.ref_id)} eager={si === 0 && i === 0} />
               </div>
             ),
           )}
@@ -93,20 +92,16 @@ export function FeedList({
   );
 }
 
-function FeedItem({ event, reactions, comments, meId, nowMs, unexplained }: { event: FeedEvent; reactions: Reaction[]; comments: Comment[]; meId: string | null; nowMs: number; unexplained: boolean }) {
+function FeedItem({ event, reactions, comments, meId, nowMs, unexplained, eager }: { event: FeedEvent; reactions: Reaction[]; comments: Comment[]; meId: string | null; nowMs: number; unexplained: boolean; eager: boolean }) {
   switch (event.type) {
     case 'post':
-      return <PostCard event={event} reactions={reactions} comments={comments} meId={meId} nowMs={nowMs} expired={photoExpired(event, nowMs, meId)} />;
+      return <PostCard event={event} reactions={reactions} comments={comments} meId={meId} nowMs={nowMs} expired={photoExpired(event, nowMs, meId)} eager={eager} />;
     case 'miss':
       return <MissCard event={event} reactions={reactions} comments={comments} meId={meId} nowMs={nowMs} unexplained={event.actor_id === meId && unexplained} />;
     case 'excused':
       return <ExcusedLine event={event} nowMs={nowMs} />;
     case 'friends':
       return <FriendsLine event={event} nowMs={nowMs} />;
-    case 'heading_out':
-      return <HeadingOutLine event={event} nowMs={nowMs} />;
-    case 'nudge':
-      return <NudgeLine event={event} nowMs={nowMs} meId={meId} />;
     default:
       return null;
   }

@@ -116,7 +116,15 @@ the `push` and `notificationclick` handlers and the `push_subscriptions` table a
 Still on the user: seed photos in `scripts/seed/photos/` then `npm run seed`, the iPhone Safari pass,
 deleting the frozen Expo tree once the phone pass is clean, and a first commit.
 
-**Stage 6 done (12 Sep 2026 ~07:20, design session): the social layer before the miss.** Four features on
+**Stage 6 revised (12 Sep 2026 ~08:10).** The user cut Nudge and Heading out ("fluff and clutter; the goal is
+attending class"). Migration `20260913000008_drop_presence.sql` drops `head_out` and `nudge` and deletes their
+feed rows (the enum values stay; the client still lists them in `FeedType` and renders them as nothing). The
+components, hooks, mock events and the two sql-test cases are gone; `get_stats()`, `WeekStats`, the together
+deck and the tab swipe stay. The Feed header now reads "Present". Next: a Groups feature (see the user's
+brief in the design session transcript); each post is to be called a "present" in copy.
+
+**Stage 6 done (12 Sep 2026 ~07:20, design session): the social layer before the miss.** (Superseded above
+for nudge and heading out.) Four features on
 top of v2, chosen to widen the gap from the app this is compared to (everything there happens after the
 photo; everything here happens before). Backend: `supabase/migrations/20260913000007_social.sql` (applied to
 hosted) adds `feed_type` values `heading_out` and `nudge` and three RPCs, all plpgsql, `app_now()`,
@@ -156,6 +164,23 @@ so it survives rebuilds); the fetch-ics function accepts it. Import via You → 
 paste the URL. Windows: opens :58/:28, on time for 12 min, late until the next slot starts, so a slot is always
 open from 04:58 to 23:50. The four seed accounts already have it imported (41 classes each); `npm run seed`
 replaces that. Delete the SAT classes from the Schedule screen to remove it from a real account.
+
+**Photos, camera and post flow (12 Sep 2026 ~10:30).** Photo loading was slow because every image paid a
+`createSignedUrl` round trip, then a CDN miss (each token is a new cache key) with no cache headers, and an
+in-memory cache that died on reload. Now `web/src/lib/api/post.ts` signs in one `createSignedUrls` batch per
+tick (TTL 7 days, map persisted in `localStorage` key `present.photo_urls.v1`, `peekSignedUrl` for a sync hit,
+`prefetchSignedUrls` called from `fetchState` for every path in the state), `web/src/app/Photo.tsx` exports
+`CachedImg` (`crossOrigin="anonymous"`, `loading="lazy"`, `decoding="async"`, `fetchPriority` high when
+`eager`; storage answers `access-control-allow-origin: *` so CORS mode is safe), `PostMedia` takes `eager`
+(first feed card), and `web/src/sw.ts` caches `/storage/v1/object/` images CacheFirst in `present-photos-v1`
+with the `token` query dropped from the key (400 entries, 30 days). Measured before: sign ~150 ms each in
+series + ~400 ms cold fetch per image; a warm CDN hit is ~60 ms and the service worker serves repeats locally.
+Post flow: the success screen now returns to the feed after 2.2 s (the timer was re-armed every second by
+the clock re-render because `useInvalidateState` returns a new function per render; it is keyed on the
+stage only now) and any tap on it leaves at once. Camera: no "tap to start" any more; `usePost` starts the
+camera itself once the occurrence is known (`autoStarted` ref), `idle` shows the spinner, a denied
+permission shows "Camera access is off for Present..." with Try again and the photo picker.
+`web/index.html` also carries `mobile-web-app-capable` next to the Apple meta.
 
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =

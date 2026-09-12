@@ -1,5 +1,5 @@
 // /post/:occurrenceId — the full-screen capture flow. No app chrome.
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { IoLockClosedOutline } from 'react-icons/io5';
 import { useNavigate, useParams } from 'react-router';
 import { CameraStage } from '@/components/post/CameraStage';
@@ -27,13 +27,18 @@ export default function Post() {
 
   const close = () => (window.history.length > 1 ? navigate(-1) : navigate('/today'));
 
-  // After success: refresh the state so the feed shows the post, then return to the feed.
+  // After success: refresh the state so the feed shows the post, then return to the feed. Only the
+  // stage may re-arm this timer; the clock re-renders every second and must not reset it.
+  const latest = useRef({ invalidate, navigate });
+  latest.current = { invalidate, navigate };
+  const goHome = () => latest.current.navigate('/', { replace: true });
   useEffect(() => {
     if (post.stage !== 'success') return;
-    void invalidate();
-    const t = window.setTimeout(() => navigate('/', { replace: true }), 2400);
+    void latest.current.invalidate();
+    const t = window.setTimeout(goHome, 2200);
     return () => window.clearTimeout(t);
-  }, [post.stage, invalidate, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.stage]);
 
   if (q.isPending && !target) {
     return (
@@ -65,7 +70,11 @@ export default function Post() {
   const remaining = (late ? Date.parse(target.deadline) : Date.parse(target.on_time_until)) - now;
 
   if (post.stage === 'success' && post.front && post.result) {
-    return <PostSuccess frontUrl={post.front.url} result={post.result} previousStreak={me?.streak ?? 0} friendsThere={friendsThere} courseCode={target.course_code} />;
+    return (
+      <div className="h-full" onClick={goHome} role="presentation">
+        <PostSuccess frontUrl={post.front.url} result={post.result} previousStreak={me?.streak ?? 0} friendsThere={friendsThere} courseCode={target.course_code} />
+      </div>
+    );
   }
   if ((post.stage === 'preview' || post.stage === 'uploading') && post.front) {
     return (

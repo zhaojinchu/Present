@@ -148,40 +148,9 @@ export function buildMockState(base = Date.now()): AppState {
   ];
 
   const feed: FeedEvent[] = [
-    // A nudge aimed at me (my 15-122 window is open): drives the banner.
-    {
-      id: 'n1',
-      actor_id: PRIYA,
-      occurrence_id: 'occ-me-122',
-      type: 'nudge',
-      ref_id: MOCK_ME_ID,
-      payload: {
-        display_name: 'Priya Natarajan',
-        username: 'priya',
-        avatar_url: null,
-        target_id: MOCK_ME_ID,
-        target_username: 'alex',
-        target_name: 'Alex Chen',
-        target_avatar_url: null,
-        course_code: '15-122',
-        starts_at: iso(-3 * MIN, base),
-        deadline: iso(57 * MIN, base),
-      },
-      created_at: iso(-30_000, base),
-    },
     // Priya and Jordan posted from the same 15-122 session: one deck in the feed.
     postEvent(base, { id: 'p1', user: PRIYA, course: '15-122', location: 'GHC 4401', offsetMin: -1, verified: true, retakes: 1, streak: 11, caption: 'front row energy', startsOffsetMin: -3 }),
     postEvent(base, { id: 'p2', user: JORDAN, course: '15-122', location: 'GHC 4401', offsetMin: -2, streak: 11, startsOffsetMin: -3 }),
-    // Sam said "leaving now" for the same class and still has not posted.
-    {
-      id: 'h1',
-      actor_id: SAM,
-      occurrence_id: 'occ-sam-122',
-      type: 'heading_out',
-      ref_id: null,
-      payload: { display_name: 'Sam Okafor', username: 'sam', avatar_url: null, course_code: '15-122', location_text: 'GHC 4401', starts_at: iso(-3 * MIN, base), ends_at: iso(47 * MIN, base), opens_at: iso(-5 * MIN, base) },
-      created_at: iso(-9 * MIN, base),
-    },
     postEvent(base, { id: 'p3', user: MOCK_ME_ID, course: '76-101', location: 'BH 255B', offsetMin: -181, verified: true, streak: 10 }),
     postEvent(base, { id: 'p4', user: SAM, course: '15-122', location: 'GHC 4401', offsetMin: -24 * 60 - 40, late: true, minutesLate: 22, retakes: 3, streak: 8, caption: 'bus.' }),
     {

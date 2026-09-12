@@ -91,17 +91,93 @@ export async function getMemories(): Promise<Memory[]> {
 }
 
 // ---------------------------------------------------------------- signed URLs
+//
+// A signed URL costs a round trip, and every fresh token is a new CDN cache key, so the same photo
+// was re-signed and re-downloaded on every reload. Now: one week TTL, the URL map persisted in
+// localStorage so reloads reuse the exact URL (browser cache + CDN hit), and all requests made in
+// the same tick are signed in one createSignedUrls call.
 
-const cache = new Map<string, { url: string; until: number }>();
-const TTL_S = 3600;
+const TTL_S = 7 * 24 * 3600;
+const STORE_KEY = 'present.photo_urls.v1';
+type Entry = { url: string; until: number };
 
-export async function signedUrl(path: string): Promise<string | null> {
+const cache = new Map<string, Entry>(loadStore());
+const pending = new Map<string, Promise<string | null>>();
+let queue: { path: string; resolve: (u: string | null) => void }[] = [];
+let flushTimer: number | null = null;
+
+function loadStore(): [string, Entry][] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as Record<string, Entry>;
+    const now = Date.now();
+    return Object.entries(raw).filter(([, e]) => e && typeof e.url === 'string' && e.until > now);
+  } catch {
+    return [];
+  }
+}
+
+function saveStore(): void {
+  try {
+    const now = Date.now();
+    const obj: Record<string, Entry> = {};
+    for (const [k, e] of cache) if (e.until > now) obj[k] = e;
+    localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+  } catch {
+    // storage full or unavailable: the in-memory map still works
+  }
+}
+
+/** The URL if it is already known, without a network request (lets images render on first paint). */
+export function peekSignedUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith('mock:')) return mockPhotoUrl(path);
   const hit = cache.get(path);
-  if (hit && hit.until > Date.now()) return hit.url;
-  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(path, TTL_S);
-  if (error || !data) return null;
-  cache.set(path, { url: data.signedUrl, until: Date.now() + (TTL_S - 600) * 1000 });
-  return data.signedUrl;
+  return hit && hit.until > Date.now() ? hit.url : null;
+}
+
+export function signedUrl(path: string): Promise<string | null> {
+  if (!path) return Promise.resolve(null);
+  const known = peekSignedUrl(path);
+  if (known) return Promise.resolve(known);
+  const inflight = pending.get(path);
+  if (inflight) return inflight;
+  const p = new Promise<string | null>((resolve) => {
+    queue.push({ path, resolve });
+    if (flushTimer === null) flushTimer = window.setTimeout(flush, 0);
+  });
+  pending.set(path, p);
+  return p;
+}
+
+/** Sign every path the state mentions in one request, ahead of the components that will ask. */
+export function prefetchSignedUrls(paths: (string | null | undefined)[]): void {
+  const unique = new Set<string>();
+  for (const p of paths) if (p && !p.startsWith('mock:') && !peekSignedUrl(p) && !pending.has(p)) unique.add(p);
+  for (const p of unique) void signedUrl(p);
+}
+
+async function flush(): Promise<void> {
+  flushTimer = null;
+  const batch = queue;
+  queue = [];
+  if (batch.length === 0) return;
+  const paths = [...new Set(batch.map((b) => b.path))];
+  const results = new Map<string, string | null>();
+  try {
+    const { data, error } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(paths, TTL_S);
+    if (error) throw error;
+    for (const r of data ?? []) {
+      if (r.path && r.signedUrl && !r.error) {
+        results.set(r.path, r.signedUrl);
+        cache.set(r.path, { url: r.signedUrl, until: Date.now() + (TTL_S - 3600) * 1000 });
+      }
+    }
+    saveStore();
+  } catch (e) {
+    console.warn('[present] could not sign photo URLs', e);
+  }
+  for (const b of batch) {
+    pending.delete(b.path);
+    b.resolve(results.get(b.path) ?? null);
+  }
 }

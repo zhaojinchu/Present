@@ -5,8 +5,6 @@ import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { LiveRow } from '@/components/feed/LiveRow';
 import { ClassRow } from '@/components/today/ClassRow';
-import { HeadingOutRow } from '@/components/today/HeadingOutRow';
-import { NudgeRow } from '@/components/today/NudgeRow';
 import { PromptCard } from '@/components/today/PromptCard';
 import { useAppState, useMe, useToday } from '@/lib/appState';
 import { useNow } from '@/lib/clock';
@@ -44,8 +42,6 @@ export default function Today() {
         {focus ? (
           <div className="mt-3">
             <PromptCard occurrence={focus.occurrence} phase={focus.phase} nowMs={now} friendsPosted={friendsPostedFor(focus.occurrence.course_code)} unexplainedMissId={missByOccurrence.get(focus.occurrence.id) ?? null} />
-            <HeadingOutRow occurrence={focus.occurrence} events={q.data?.feed ?? []} meId={me?.id ?? null} nowMs={now} className="mt-3 px-1" />
-            <NudgeRow session={focus.occurrence} theirs={theirs.map((t) => t.occurrence)} events={q.data?.feed ?? []} meId={me?.id ?? null} nowMs={now} className="mt-3 px-1" />
           </div>
         ) : null}
 
