@@ -42,7 +42,7 @@ export default function Explain() {
     setBusy('excuse');
     setErr(null);
     try {
-      await excuseMiss(missId);
+      await excuseMiss(missId, text.trim() || undefined);
       await invalidate();
       done();
     } catch (x) {
@@ -74,7 +74,7 @@ export default function Explain() {
           <Button title="Later" variant="tertiary" size="lg" onClick={done} disabled={!!busy} />
           <ErrorText>{err}</ErrorText>
           <Txt variant="footnote" tone="tertiary" align="center" className="mt-2">
-            An excused miss does not break your streak.
+            An excused miss does not break your streak. Whatever you typed goes under the miss either way.
           </Txt>
         </form>
       </Main>

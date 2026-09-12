@@ -182,6 +182,82 @@ camera itself once the occurrence is known (`autoStarted` ref), `idle` shows the
 permission shows "Camera access is off for Present..." with Try again and the photo picker.
 `web/index.html` also carries `mobile-web-app-capable` next to the Apple meta.
 
+**Stage 7 backend (12 Sep 2026 ~11:15): groups.** `supabase/migrations/20260913000009_groups.sql` (+
+`000010_groups_supabase_only.sql` for the publication), applied to hosted. Tables `groups` (name, emoji,
+`invite_code` 6 chars no 0/O/1/I, `forfeit_text`, created_by), `group_members` (max 8, enforced in the
+RPCs), `group_forfeits` (owed | paid | voided), `miss_votes`, `miss_vouches`; RLS = member of the group via
+`my_group_ids()`. `visible_users()` = me + friends + `group_mates()`, so co-members' classes, posts, misses
+and photos flow through every existing policy and `get_state()`; the friends list uses `friends_of()` only.
+RPCs: `create_group`, `join_group(code)` (anyone, idempotent), `add_to_group` (friends only), `leave_group`
+(last one out deletes), `update_group` (creator; empty emoji/forfeit clears), `mark_forfeit_paid` (not the
+ower), `vote_miss` (fair votes > (members - 1) / 2 excuses for the group), `vouch_miss` (one vouch excuses),
+`group_state`. Trigger `misses_group_effects`: a new unexcused miss owes the forfeit in each group with a
+forfeit_text; any excuse (own, vote, vouch) voids it. `group_streak` / `group_best_streak` over all
+occurrences of current members by date (broken: unexcused miss or pending past deadline; complete: all on
+time / excused / group-excused; late or pending leaves the day undecided). `get_state()` adds `groups[]`
+(members with personal streak + posted_today, streak, best_streak, week made/total/on_time/late/missed/
+upcoming where total = made + missed, standings over the term, forfeits/votes/vouches/excused_miss_ids for
+misses of the last 14 days) and `shared_courses[]` (my active courses that at least one friend also has).
+Tests: `scripts/sql-test-groups.mts` (7 cases, part of `npm run sql:test`). Client: the five tables are on
+the realtime channel in `appState.ts`; `types.ts` imports the peer's `web/src/lib/groups.ts` schemas.
+The Saturday test slots were removed from the four seed accounts again (their misses were wrecking the
+seeded streaks and feed); real accounts keep theirs.
+
+**Stage 7 UI (12 Sep 2026 ~11:40, design session): groups, all seven mechanics, for the user to rate.**
+Contract in `web/src/lib/groups.ts` (zod `Group`, `SharedCourse` + pure helpers `rollCall`, `sortedStandings`,
+`missInGroup`, `eventsForGroup`, `groupsSharedWith`); writes in `web/src/lib/api/groups.ts` (one `rpc()` that
+logs and resolves in mock mode). `AppState` gained `groups` and `shared_courses` with `.default([])`. Screens:
+`/groups` (list, schedule suggestions from `shared_courses`, New / Join), `/groups/:id` (GroupCard hero: group
+streak in ember or "Streak lost · everyone starts over" in red, best, members, this week; roll call today;
+standings with a trophy and the bottom row in danger-soft when it has misses; stakes with "Mark paid";
+members; add friends (max 8); invite code with share/copy; leave with tap-again confirm), `/groups/new`
+(name, emoji chips, stakes presets + custom + none, friend picker; prefilled by `?name=&members=` from a
+suggestion), `/groups/join?code=` (auto-submits from a link). Feed: `GroupChips` row (All, one chip per
+group, a people icon to /groups); with a group selected the feed is `eventsForGroup`, a compact `GroupCard`
+strip and the one roll-call session that matters now sit above it, and every miss by a member gets
+`GroupMissActions` (owes / paid / waived line, Fair enough / Not buying it with counts, I saw them; the misser
+sees "n of needed say fair enough"); in the All view each miss gets one summary line per shared group. The
+chip selection lives in a module variable so it survives tab swipes. You tab: Groups row; "Posts" stats are
+now "Presents"; PromptCard says "Present from 15-122" / "Present late". Mock fixture: "Hack House" (streak 0,
+best 12, Sam owes boba on `miss-1`, one fair one unfair vote) and "15-122 gang" (streak 3), `shared_courses`
+21-241 with Sam and Jordan. Verified on the mock in Brave (all screens, no console errors); deployed to
+production together with the peer's realtime-channel change. PITCH.md demo beats now use the group. After
+the peer's UI round, Standings, Stakes and RollCall wrap avatars/names in `ProfileLink` (deployed ~12:10).
+
+**UI round (12 Sep 2026 ~12:15): six fixes from the user.** (1) TogetherDeck swipe: threshold 40 px or a
+sixth of the card, velocity 240, mostly-horizontal check, `dragDirectionLock`, no momentum, so a slow
+deliberate swipe registers. (2) Today: the classes list shows ten rows centred on what is still to come;
+finished rows collapse behind "Show N earlier", the tail behind "Show N more" (`splitRows` in
+`routes/Today.tsx`). (3) The "N friends are in class now" row sits directly under the date on Today.
+(4) "Can't make it" is public: `20260913000011_excuse_reason.sql` replaces `excuse_occurrence(uuid)` with
+`excuse_occurrence(uuid, text)` (reason required, stored as the miss explanation, carried as
+`payload.reason` on the excused event, streak still stays) and `excuse_miss(uuid, text default null)`
+(optional reason becomes the first comment under the miss and rides on the excused event);
+`on_miss_update` adds `reason` and `starts_at` to the excused payload. Client: `PromptCard` opens a Sheet
+that requires the reason ("Announce it"), `ExcusedLine` shows "X can't make 15-122" with the reason in a
+Quote, `Explain` passes the typed text along with "It was sick or an emergency". `FeedPayload` gained
+`reason`. (5) Miss card: a plain second line ("Sam didn't show up and hasn't said why." / "Everyone can
+see this." for the misser), "No excuse yet. Reply" under it; the Late chip now sits on the photo itself
+(`PostMedia late` prop, used by PostCard, TogetherDeck and the posted PromptCard). (6)
+`components/ProfileLink.tsx`: any avatar or name opens /u/:username (or /you for me) with propagation
+stopped; used in PostCard, MissCard, ExcusedLine, FriendsLine, LiveRow, Comments. Group screens still use
+plain Avatar (present-bb offered to switch them).
+
+**Stage 7 revised (12 Sep 2026 ~12:40): groups are now circles of people.** The user found the class-based
+framing unintuitive ("it should be groups of PEOPLE, shouldn't be related to classes... rename it to circle")
+and the feed chip row too tall on a phone. UI renames only; the database and `get_state().groups` keep the
+group names (`web/src/lib/groups.ts` says so at the top). Files moved: `web/src/components/circles/`
+(CircleCard, CircleMissActions, CirclePicker, RollCall, Standings, Stakes; GroupChips and SuggestedGroups
+deleted) and routes `Circles.tsx`, `CircleDetail.tsx`, `CircleNew.tsx`, `CircleJoin.tsx` at `/circles`,
+`/circles/:circleId`, `/circles/new`, `/circles/join?code=`. `shared_courses` is no longer read by the UI
+(still in the contract with a default). The Present top bar has a circles icon (IoPeopleCircle, filled when
+a circle is selected, badge = number of circles) that opens a vaul sheet "Show presents from": Everyone,
+each circle with its streak chip, then Manage circles (or Make a circle when there are none). Picking one
+filters the feed and shows the compact circle strip + live roll call as before. Create flow is name, emoji,
+stakes, invite friends; join is by code. Copy: "circle streak", "owes the circle", "Invite", presets start
+with "buys everyone boba". Roll call stays but only renders when two members share a class today. Mock
+circle 2 is "Coffee crew" ☕. Deployed to production; PITCH.md updated to the picker and circle wording.
+
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =
 design session if it continues; otherwise this session. Shared: `web/src/lib/types.ts`, `KNOWLEDGE.md`.

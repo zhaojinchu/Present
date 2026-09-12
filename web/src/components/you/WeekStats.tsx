@@ -64,7 +64,7 @@ export function WeekStats({ className }: { className?: string }) {
       <div className="flex gap-6 mt-4">
         <Stat size="sm" value={onTime === null ? '–' : `${onTime}%`} label="On time" />
         <Stat size="sm" value={hours(me.minutes_in_class)} label="Hours in class" />
-        <Stat size="sm" value={me.term_posted} label="Posts this term" />
+        <Stat size="sm" value={me.term_posted} label="Presents this term" />
       </div>
 
       {q.data.friends.length > 0 ? <FriendsWeek me={me} friends={q.data.friends} /> : null}

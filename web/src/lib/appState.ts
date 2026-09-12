@@ -108,6 +108,11 @@ export function useRealtimeInvalidation(userId: string | null) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reactions' }, bump)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_forfeits' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'miss_votes' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'miss_vouches' }, bump)
       .subscribe((status) => setLive(status === 'SUBSCRIBED'));
     return () => {
       if (timer.current) window.clearTimeout(timer.current);

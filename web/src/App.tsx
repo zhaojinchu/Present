@@ -1,6 +1,10 @@
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import AddFriend from './routes/AddFriend';
 import { SignIn, SignUp } from './routes/auth';
+import CircleDetail from './routes/CircleDetail';
+import CircleJoin from './routes/CircleJoin';
+import CircleNew from './routes/CircleNew';
+import Circles from './routes/Circles';
 import Comments from './routes/Comments';
 import Dev from './routes/Dev';
 import Explain from './routes/Explain';
@@ -32,6 +36,10 @@ const router = createBrowserRouter([
       { path: 'explain/:missId', element: <Explain /> },
       { path: 'friends', element: <Friends /> },
       { path: 'friends/share', element: <FriendsShare /> },
+      { path: 'circles', element: <Circles /> },
+      { path: 'circles/new', element: <CircleNew /> },
+      { path: 'circles/join', element: <CircleJoin /> },
+      { path: 'circles/:circleId', element: <CircleDetail /> },
       { path: 'add/:username', element: <AddFriend /> },
       { path: 'u/:username', element: <UserProfile /> },
       { path: 'schedule', element: <Schedule /> },

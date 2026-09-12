@@ -14,8 +14,10 @@ import { CommentPreview } from './CommentPreview';
 import { PostMedia } from './PostMedia';
 import { ReactionBar } from './ReactionBar';
 
-const SWIPE_DISTANCE = 72;
-const SWIPE_VELOCITY = 450;
+// A slow, deliberate swipe must count as much as a flick: a short distance (or a sixth of the
+// card, whichever is smaller) or a modest velocity, as long as the motion was mostly sideways.
+const SWIPE_DISTANCE = 40;
+const SWIPE_VELOCITY = 240;
 
 export function TogetherDeck({
   group,
@@ -41,8 +43,12 @@ export function TogetherDeck({
   const paginate = (dir: 1 | -1) => setPage(([i]) => [(i + dir + count) % count, dir]);
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (count < 2) return;
-    if (info.offset.x < -SWIPE_DISTANCE || info.velocity.x < -SWIPE_VELOCITY) paginate(1);
-    else if (info.offset.x > SWIPE_DISTANCE || info.velocity.x > SWIPE_VELOCITY) paginate(-1);
+    const width = deckRef.current?.getBoundingClientRect().width ?? 320;
+    const distance = Math.min(SWIPE_DISTANCE, width / 6);
+    const { x, y } = info.offset;
+    if (Math.abs(x) < Math.abs(y) * 0.8) return; // mostly vertical: the list was scrolling
+    if (x < -distance || info.velocity.x < -SWIPE_VELOCITY) paginate(1);
+    else if (x > distance || info.velocity.x > SWIPE_VELOCITY) paginate(-1);
   };
   // Tap the right third for the next person, the left third for the previous (stories convention).
   // Motion only fires onTap when the pointer did not drag, so this never fights the swipe.
@@ -106,8 +112,10 @@ export function TogetherDeck({
               exit="exit"
               transition={{ x: { type: 'spring', stiffness: 380, damping: 34 }, opacity: { duration: 0.18 } }}
               drag={count > 1 ? 'x' : false}
+              dragDirectionLock
               dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.85}
+              dragElastic={0.9}
+              dragMomentum={false}
               onDragEnd={onDragEnd}
               onTap={onTap}
             >
@@ -157,7 +165,7 @@ function DeckCard({ event, expired, onOpenProfile }: { event: FeedEvent; expired
           </Txt>
         </div>
       ) : (
-        <PostMedia mainPath={p.photo_path} insetPath={p.photo_back_path} placeholder={p.course_code ?? ''} rounded="rounded-xl" className="pointer-events-none" />
+        <PostMedia mainPath={p.photo_path} insetPath={p.photo_back_path} placeholder={p.course_code ?? ''} rounded="rounded-xl" className="pointer-events-none" late={!!p.late} />
       )}
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3 bg-gradient-to-t from-scrim to-transparent">
         <button type="button" onClick={onOpenProfile} className="flex items-center gap-2 min-w-0 text-left">

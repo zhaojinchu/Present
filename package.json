@@ -37,7 +37,8 @@
     "eas-cli": "^24.3.0",
     "pg": "^8.23.0",
     "tsx": "^4.23.13",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "web-push": "^3.6.7"
   },
   "scripts": {
     "start": "expo start",
@@ -47,7 +48,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "seed": "tsx scripts/seed.mts",
-    "sql:test": "tsx scripts/sql-test.mts && tsx scripts/sql-test-social.mts",
+    "sql:test": "tsx scripts/sql-test.mts && tsx scripts/sql-test-social.mts && tsx scripts/sql-test-groups.mts",
     "verify": "tsx scripts/verify-supabase.mts",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",

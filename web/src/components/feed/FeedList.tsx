@@ -2,7 +2,9 @@
 import { IoPersonAddOutline, IoTimeOutline } from 'react-icons/io5';
 import { useNavigate } from 'react-router';
 import { commentsFor, groupByDay, photoExpired, reactionsFor } from '@/lib/feed';
+import { type Group } from '@/lib/groups';
 import { groupPosts } from '@/lib/presence';
+import { CircleMissActions } from '@/components/circles/CircleMissActions';
 import type { Comment, FeedEvent, Occurrence, Reaction } from '@/lib/types';
 import { fmtTime } from '@/lib/time';
 import { Button, EmptyState, Skeleton, Strong, Txt } from '@/ui';
@@ -20,6 +22,8 @@ export function FeedList({
   friendsCount,
   unexplainedMissIds,
   nextUp,
+  groups,
+  group,
 }: {
   events: FeedEvent[];
   reactions: Reaction[];
@@ -31,6 +35,9 @@ export function FeedList({
   unexplainedMissIds: Set<string>;
   /** A friend's next upcoming class, for the quiet-day empty state. */
   nextUp: Occurrence | null;
+  /** All my circles (for the verdict lines under a miss) and the one being viewed, if any. */
+  groups?: Group[];
+  group?: Group | null;
 }) {
   const navigate = useNavigate();
   if (loading && events.length === 0) return <FeedSkeleton />;
@@ -54,7 +61,7 @@ export function FeedList({
       <EmptyState
         icon={IoTimeOutline}
         title="Nothing yet today"
-        message={nextUp ? undefined : 'Posts land here as your friends walk into class.'}
+        message={nextUp ? undefined : 'Presents land here as your friends walk into class.'}
         action={
           nextUp ? (
             <Txt variant="subhead" tone="secondary" align="center">
@@ -82,7 +89,7 @@ export function FeedList({
             ) : (
               <div key={row.event.id}>
                 {i > 0 ? <div className="hairline mx-4" /> : null}
-                <FeedItem event={row.event} reactions={reactionsFor(reactions, row.event.id)} comments={commentsFor(comments, row.event.id)} meId={meId} nowMs={nowMs} unexplained={!!row.event.ref_id && unexplainedMissIds.has(row.event.ref_id)} eager={si === 0 && i === 0} />
+                <FeedItem event={row.event} reactions={reactionsFor(reactions, row.event.id)} comments={commentsFor(comments, row.event.id)} meId={meId} nowMs={nowMs} unexplained={!!row.event.ref_id && unexplainedMissIds.has(row.event.ref_id)} eager={si === 0 && i === 0} groups={groups ?? []} group={group ?? null} />
               </div>
             ),
           )}
@@ -92,12 +99,22 @@ export function FeedList({
   );
 }
 
-function FeedItem({ event, reactions, comments, meId, nowMs, unexplained, eager }: { event: FeedEvent; reactions: Reaction[]; comments: Comment[]; meId: string | null; nowMs: number; unexplained: boolean; eager: boolean }) {
+function FeedItem({ event, reactions, comments, meId, nowMs, unexplained, eager, groups, group }: { event: FeedEvent; reactions: Reaction[]; comments: Comment[]; meId: string | null; nowMs: number; unexplained: boolean; eager: boolean; groups: Group[]; group: Group | null }) {
   switch (event.type) {
     case 'post':
       return <PostCard event={event} reactions={reactions} comments={comments} meId={meId} nowMs={nowMs} expired={photoExpired(event, nowMs, meId)} eager={eager} />;
     case 'miss':
-      return <MissCard event={event} reactions={reactions} comments={comments} meId={meId} nowMs={nowMs} unexplained={event.actor_id === meId && unexplained} />;
+      return (
+        <MissCard
+          event={event}
+          reactions={reactions}
+          comments={comments}
+          meId={meId}
+          nowMs={nowMs}
+          unexplained={event.actor_id === meId && unexplained}
+          extra={event.ref_id ? <CircleMissActions missId={event.ref_id} actorId={event.actor_id} group={group} groups={groups} meId={meId} className="mt-3" /> : null}
+        />
+      );
     case 'excused':
       return <ExcusedLine event={event} nowMs={nowMs} />;
     case 'friends':

@@ -11,6 +11,7 @@ export function PostMedia({
   className,
   rounded = 'rounded-xl',
   eager = false,
+  late = false,
 }: {
   mainPath: string | null | undefined;
   insetPath?: string | null;
@@ -20,6 +21,8 @@ export function PostMedia({
   rounded?: string;
   /** First item on screen: fetch at high priority instead of lazily. */
   eager?: boolean;
+  /** Posted after the on-time window: a chip on the photo says so wherever it is shown. */
+  late?: boolean;
 }) {
   const [swapped, setSwapped] = useState(false);
   useEffect(() => setSwapped(false), [mainPath, insetPath]);
@@ -38,6 +41,11 @@ export function PostMedia({
         >
           <Img path={small} />
         </button>
+      ) : null}
+      {late && mainPath ? (
+        <span className="absolute top-2 right-2 inline-flex items-center h-6 px-2 rounded-full bg-warning text-text-inverse text-[11px] font-bold uppercase tracking-wide shadow-sm" aria-label="Posted late">
+          Late
+        </span>
       ) : null}
     </div>
   );

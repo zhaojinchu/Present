@@ -41,6 +41,10 @@ const expected = [
   'username_available', 'send_friend_request', 'accept_friend_request', 'remove_friend', 'search_users', 'update_profile',
   'toggle_reaction', 'add_comment', 'import_classes', 'get_state', 'get_memories', 'expire_photos',
   'save_push_subscription', 'remove_push_subscription',
+  'get_stats', 'stats_for',
+  'my_group_ids', 'group_mates', 'is_group_member', 'gen_invite_code', 'miss_group_excused', 'void_forfeit', 'on_miss_group_effects',
+  'group_days', 'group_streak', 'group_best_streak', 'group_json', 'group_state', 'check_miss_in_group',
+  'create_group', 'join_group', 'add_to_group', 'leave_group', 'update_group', 'mark_forfeit_paid', 'vote_miss', 'vouch_miss',
   'dev_scope', 'dev_reset_demo', 'dev_start_class_now', 'dev_end_on_time_now', 'dev_end_window_now', 'dev_pin_here',
   'dev_replay_post', 'dev_replay_explanation',
 ];
@@ -53,7 +57,7 @@ console.log('\nrow level security');
 const tables = await rows<{ relname: string; relrowsecurity: boolean }>(
   `select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' order by relname`,
 );
-const expectedTables = ['profiles', 'friendships', 'classes', 'class_occurrences', 'posts', 'misses', 'feed_events', 'reactions', 'comments', 'push_subscriptions'];
+const expectedTables = ['profiles', 'friendships', 'classes', 'class_occurrences', 'posts', 'misses', 'feed_events', 'reactions', 'comments', 'push_subscriptions', 'groups', 'group_members', 'group_forfeits', 'miss_votes', 'miss_vouches'];
 const names = new Set(tables.map((t) => t.relname));
 const missingTables = expectedTables.filter((t) => !names.has(t));
 const noRls = tables.filter((t) => !t.relrowsecurity).map((t) => t.relname);
@@ -73,8 +77,8 @@ report(spols.length === 3, 'storage policies (upload / overwrite / read)', `${sp
 
 console.log('\nrealtime');
 const pub = (await rows<{ tablename: string }>(`select tablename from pg_publication_tables where pubname = 'supabase_realtime'`)).map((r) => r.tablename);
-const needPub = ['feed_events', 'reactions', 'comments', 'friendships'];
-report(needPub.every((t) => pub.includes(t)), 'supabase_realtime publishes feed_events, reactions, comments, friendships', pub.join(', ') || 'none');
+const needPub = ['feed_events', 'reactions', 'comments', 'friendships', 'groups', 'group_members', 'group_forfeits', 'miss_votes', 'miss_vouches'];
+report(needPub.every((t) => pub.includes(t)), 'supabase_realtime publishes feed, reactions, comments, friendships, groups', pub.join(', ') || 'none');
 
 console.log('\ncron');
 const jobs = await rows<{ jobname: string; schedule: string; active: boolean; __error?: string }>(`select jobname, schedule, active from cron.job order by jobname`);

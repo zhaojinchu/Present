@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { useParams } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
+import { ProfileLink } from '@/components/ProfileLink';
 import { addComment } from '@/lib/api/social';
 import { useAppState, useInvalidateState } from '@/lib/appState';
 import { useNow } from '@/lib/clock';
@@ -52,10 +53,15 @@ export default function Comments() {
         ) : null}
         {comments.map((c) => (
           <div key={c.id} className="flex items-start gap-3 px-4 py-3">
-            <Avatar name={c.display_name} size={32} />
+            <ProfileLink username={c.username} label={c.display_name}>
+              <Avatar name={c.display_name} size={32} />
+            </ProfileLink>
             <div className="flex-1 min-w-0">
               <Txt variant="subhead" className="selectable">
-                <Strong>{c.username}</Strong> {c.text}
+                <ProfileLink username={c.username} className="inline">
+                  <Strong>{c.username}</Strong>
+                </ProfileLink>{' '}
+                {c.text}
               </Txt>
               <Txt variant="footnote" tone="tertiary">
                 {relative(c.created_at, now)}

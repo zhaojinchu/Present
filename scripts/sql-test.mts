@@ -420,15 +420,18 @@ await test('pre-emptive excuse on a pending class', async () => {
   await as(alex);
   await q(`select public.import_classes($1::jsonb)`, [JSON.stringify([{ ...sio, ics_uid: 'sio-sat', course_code: '99-100', days_of_week: [6], start_time: '10:00', end_time: '10:50', exdates: [] }])]);
   const sat = await occOf(alex, '2026-09-19', '99-100');
-  await q(`select public.excuse_occurrence($1)`, [sat.id]);
+  await expectError(q(`select public.excuse_occurrence($1, '  ')`, [sat.id]), 'Say why');
+  await q(`select public.excuse_occurrence($1, 'dentist at 10')`, [sat.id]);
   assert.equal((await occOf(alex, '2026-09-19', '99-100')).status, 'excused');
   const m = await one(`select excused from public.misses where occurrence_id = $1`, [sat.id]);
   assert.equal(m.excused, true);
   const ev = await one(`select payload from public.feed_events where type = 'excused' and actor_id = $1`, [alex]);
   assert.equal(ev.payload.pre_emptive, true);
-  await expectError(q(`select public.excuse_occurrence($1)`, [sat.id]), 'already excused');
+  assert.equal(ev.payload.reason, 'dentist at 10', 'the reason is announced');
+  assert.equal((await one(`select explanation from public.misses where occurrence_id = $1`, [sat.id])).explanation, 'dentist at 10');
+  await expectError(q(`select public.excuse_occurrence($1, 'again')`, [sat.id]), 'already excused');
   await as(sam);
-  await expectError(q(`select public.excuse_occurrence($1)`, [sat.id]), 'not your class');
+  await expectError(q(`select public.excuse_occurrence($1, 'not mine')`, [sat.id]), 'not your class');
 });
 
 console.log('\nstate, reactions, comments');

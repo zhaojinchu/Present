@@ -37,8 +37,8 @@ export async function searchUsers(query: string): Promise<SearchUser[]> {
 export const toggleReaction = (eventId: string, emoji: string) => rpc<boolean>('toggle_reaction', { p_event_id: eventId, p_emoji: emoji });
 export const addComment = (eventId: string, text: string) => rpc('add_comment', { p_event_id: eventId, p_text: text });
 export const explainMiss = (missId: string, text: string) => rpc('explain_miss', { p_miss_id: missId, p_text: text });
-export const excuseMiss = (missId: string) => rpc('excuse_miss', { p_miss_id: missId });
-export const excuseOccurrence = (occurrenceId: string) => rpc('excuse_occurrence', { p_occurrence_id: occurrenceId });
+export const excuseMiss = (missId: string, reason?: string) => rpc('excuse_miss', { p_miss_id: missId, p_reason: reason ?? null });
+export const excuseOccurrence = (occurrenceId: string, reason: string) => rpc('excuse_occurrence', { p_occurrence_id: occurrenceId, p_reason: reason });
 
 export const updateProfile = (patch: { display_name?: string; username?: string; avatar_url?: string; tz?: string }) =>
   rpc('update_profile', {

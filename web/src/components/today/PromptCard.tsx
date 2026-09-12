@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router';
 import { PostMedia } from '@/components/feed/PostMedia';
 import { excuseOccurrence } from '@/lib/api/social';
 import { useInvalidateState } from '@/lib/appState';
+import { EXPLANATION_MAX } from '@/lib/config';
 import { minutesLate, type Phase } from '@/lib/phase';
+import { errorMessage } from '@/lib/supabase';
 import { fmtCountdown, fmtTime } from '@/lib/time';
 import type { Occurrence } from '@/lib/types';
-import { AvatarStack, Badge, Button, Card, cx, Icon, Txt } from '@/ui';
+import { AvatarStack, Badge, Button, Card, cx, ErrorText, Icon, Sheet, TextArea, Txt } from '@/ui';
 import { CountdownRing } from './CountdownRing';
 
 export function PromptCard({
@@ -31,19 +33,45 @@ export function PromptCard({
   const navigate = useNavigate();
   const invalidate = useInvalidateState();
   const [busy, setBusy] = useState(false);
+  const [excusing, setExcusing] = useState(false);
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState<string | null>(null);
   const opens = Date.parse(o.opens_at);
   const onTime = Date.parse(o.on_time_until);
   const deadline = Date.parse(o.deadline);
   const go = () => navigate(`/post/${o.id}`);
-  const cantMakeIt = async () => {
+  // "Can't make it" is public: the reason is required and goes in the feed with your name on it.
+  const cantMakeIt = () => {
+    setErr(null);
+    setExcusing(true);
+  };
+  const announce = async () => {
     setBusy(true);
+    setErr(null);
     try {
-      await excuseOccurrence(o.id);
+      await excuseOccurrence(o.id, reason.trim());
       await invalidate();
+      setExcusing(false);
+      setReason('');
+    } catch (e) {
+      setErr(errorMessage(e));
     } finally {
       setBusy(false);
     }
   };
+  const excuseSheet = (
+    <Sheet open={excusing} onOpenChange={setExcusing} title={`Can't make ${o.course_code}?`}>
+      <Txt variant="subhead" tone="secondary">
+        Say why. It goes in the feed for everyone to see. Your streak stays.
+      </Txt>
+      <TextArea value={reason} onChange={(e) => setReason(e.target.value.slice(0, EXPLANATION_MAX))} placeholder="dentist at 2, back for the lab" maxLength={EXPLANATION_MAX} autoFocus className="mt-3" />
+      <Txt variant="footnote" tone="tertiary" align="right" tabular className="mt-1">
+        {reason.length}/{EXPLANATION_MAX}
+      </Txt>
+      <Button title="Announce it" size="lg" className="mt-2" loading={busy} disabled={!reason.trim()} onClick={announce} />
+      <ErrorText>{err}</ErrorText>
+    </Sheet>
+  );
 
   if (compact) {
     if (phase !== 'open' && phase !== 'late') return null;
@@ -51,7 +79,7 @@ export function PromptCard({
       <button type="button" onClick={go} className="pressable w-full flex items-center gap-3 px-4 h-[52px] bg-surface">
         <Icon icon={IoCameraOutline} size={20} className={phase === 'late' ? 'text-warning' : 'text-text'} />
         <Txt variant="headline" className="flex-1 text-left" lines={1}>
-          {phase === 'late' ? `Post late from ${o.course_code}` : `Post from ${o.course_code}`}
+          {phase === 'late' ? `Present late from ${o.course_code}` : `Present from ${o.course_code}`}
         </Txt>
         <Txt variant="subhead" tone={phase === 'late' ? 'warning' : 'secondary'} tabular>
           {fmtCountdown((phase === 'late' ? deadline : onTime) - nowMs)}
@@ -86,6 +114,7 @@ export function PromptCard({
       </div>
     ) : null;
 
+  const card = (() => {
   switch (phase) {
     case 'open':
       return (
@@ -100,7 +129,7 @@ export function PromptCard({
               </Txt>
             </div>
           </div>
-          <PulseButton title={`Post from ${o.course_code}`} onClick={go} />
+          <PulseButton title={`Present from ${o.course_code}`} onClick={go} />
           {friendsLine}
         </Card>
       );
@@ -117,7 +146,7 @@ export function PromptCard({
               </Txt>
             </div>
           </div>
-          <Button title="Post late" size="lg" className="mt-4" onClick={go} />
+          <Button title="Present late" size="lg" className="mt-4" onClick={go} />
           {friendsLine}
         </Card>
       );
@@ -134,7 +163,7 @@ export function PromptCard({
               {untilOpen < 3_600_000 ? 'until posting opens' : 'posting opens'}
             </Txt>
           </div>
-          <Button title="Can't make it" variant="tertiary" size="sm" className="mt-3 self-start" loading={busy} onClick={cantMakeIt} icon={IoMedkitOutline} />
+          <Button title="Can't make it" variant="tertiary" size="sm" className="mt-3 self-start" onClick={cantMakeIt} icon={IoMedkitOutline} />
           {friendsLine}
         </Card>
       );
@@ -144,9 +173,9 @@ export function PromptCard({
         <Card>
           {header}
           <Txt variant="subhead" tone="secondary" className="mt-3">
-            The window closed. It will be marked missed unless you were sick.
+            The window closed. It will be marked missed unless you say why you could not make it.
           </Txt>
-          <Button title="I was sick" variant="secondary" size="sm" className="mt-3 self-start" loading={busy} onClick={cantMakeIt} icon={IoMedkitOutline} />
+          <Button title="I couldn't make it" variant="secondary" size="sm" className="mt-3 self-start" onClick={cantMakeIt} icon={IoMedkitOutline} />
         </Card>
       );
     case 'posted':
@@ -154,7 +183,7 @@ export function PromptCard({
       return (
         <Card className="flex gap-4">
           <div className="w-16 shrink-0">
-            <PostMedia mainPath={o.post?.photo_path} insetPath={o.post?.photo_back_path} rounded="rounded-md" placeholder="" />
+            <PostMedia mainPath={o.post?.photo_path} insetPath={o.post?.photo_back_path} rounded="rounded-md" placeholder="" late={phase === 'posted_late'} />
           </div>
           <div className="flex-1 min-w-0">
             {header}
@@ -193,11 +222,18 @@ export function PromptCard({
         <Card>
           {header}
           <Txt variant="subhead" tone="secondary" className="mt-3">
-            Streak stays.
+            Streak stays. Your friends saw why.
           </Txt>
         </Card>
       );
   }
+  })();
+  return (
+    <>
+      {card}
+      {excuseSheet}
+    </>
+  );
 }
 
 const badge: Record<Phase, { label: string; tone: 'neutral' | 'accent' | 'success' | 'danger' | 'warning' | 'info' }> = {

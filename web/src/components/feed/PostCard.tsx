@@ -1,7 +1,7 @@
 // One post in the feed: header row, the photo unit, caption, reactions, comment preview.
 // No card, no border; a hairline separates items (drawn by the list).
 import { IoLocationOutline } from 'react-icons/io5';
-import { useNavigate } from 'react-router';
+import { ProfileLink } from '@/components/ProfileLink';
 import { fmtTime, relative } from '@/lib/time';
 import type { Comment, FeedEvent, Reaction } from '@/lib/types';
 import { Avatar, Badge, Strong, Txt } from '@/ui';
@@ -28,7 +28,6 @@ export function PostCard({
   eager?: boolean;
 }) {
   const p = event.payload;
-  const navigate = useNavigate();
   const name = p.display_name ?? 'Someone';
   const minutesLate = p.late && p.posted_at && p.starts_at ? Math.max(1, Math.round((Date.parse(p.posted_at) - Date.parse(p.starts_at) - 10 * 60_000) / 60_000)) : 0;
   const when = p.posted_at ?? event.created_at;
@@ -36,12 +35,14 @@ export function PostCard({
   return (
     <article className="py-3">
       <header className="flex items-start gap-3 px-4">
-        <button type="button" onClick={() => p.username && navigate(`/u/${p.username}`)} className="shrink-0" aria-label={name}>
+        <ProfileLink username={p.username} className="shrink-0" label={name}>
           <Avatar name={name} src={p.avatar_url} size={40} />
-        </button>
+        </ProfileLink>
         <div className="flex-1 min-w-0">
           <Txt variant="body" lines={1}>
-            <Strong>{name}</Strong>
+            <ProfileLink username={p.username} className="inline">
+              <Strong>{name}</Strong>
+            </ProfileLink>
             {p.course_code ? <span className="text-text-secondary"> · {p.course_code}</span> : null}
           </Txt>
           <Txt variant="footnote" tone="tertiary" lines={1}>
@@ -64,7 +65,7 @@ export function PostCard({
         </Txt>
       ) : (
         <div className="px-2 mt-3">
-          <PostMedia mainPath={p.photo_path} insetPath={p.photo_back_path} placeholder={p.course_code ?? 'No photo'} eager={eager} />
+          <PostMedia mainPath={p.photo_path} insetPath={p.photo_back_path} placeholder={p.course_code ?? 'No photo'} eager={eager} late={!!p.late} />
         </div>
       )}
 
