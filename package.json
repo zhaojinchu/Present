@@ -43,7 +43,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "seed": "tsx scripts/seed.mts",
-    "sql:test": "tsx scripts/sql-test.mts"
+    "sql:test": "tsx scripts/sql-test.mts",
+    "verify": "tsx scripts/verify-supabase.mts"
   },
   "private": true
 }

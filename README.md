@@ -33,6 +33,11 @@ The full design, team split, hour-by-hour build order and demo runbook are in [P
 | `npm run typecheck` | app type check |
 | `npm run sql:test` | runs the migrations in an in-process Postgres (PGlite) and exercises the whole skip moment, forfeit cap, excuses and RLS. No Supabase needed. |
 | `npm run seed` | wipe + rebuild the demo accounts, circle, schedules and two weeks of history |
+| `npm run verify` | checks the hosted project end to end: migrations, functions, RLS, triggers, bucket, storage policies, realtime publication, cron jobs. Run after every `supabase db push`. |
+
+Setup notes:
+- Hosted Supabase rejects made-up email domains on sign-up ("Email address is invalid"). Sign up in the app with a real address (andrew.cmu.edu is fine). The seed accounts (`…@present.demo`) are created through the admin API, which skips that check, and they sign in normally.
+- `supabase migration list` and `npm run verify` both need the database password (the CLI prompts; the script reads `DATABASE_URL` from `.env`).
 
 ## Layout
 
