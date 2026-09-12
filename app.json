@@ -6,12 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "present",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f0f12"
+      "backgroundColor": "#F7F0E3"
     },
     "ios": {
       "supportsTablet": false,
@@ -25,10 +25,14 @@
       "package": "edu.cmu.present",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0f0f12"
+        "backgroundColor": "#F7F0E3"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -38,16 +42,23 @@
       "expo-image",
       [
         "expo-camera",
-        { "cameraPermission": "Present takes a photo from inside the room when you check in to class." }
+        {
+          "cameraPermission": "Present takes a photo from inside the room when you check in to class."
+        }
       ],
       [
         "expo-location",
-        { "locationWhenInUsePermission": "Present checks that you're inside the building when you check in. Only a yes/no is stored." }
+        {
+          "locationWhenInUsePermission": "Present checks that you're inside the building when you check in. Only a yes/no is stored."
+        }
       ],
       [
         "expo-notifications",
-        { "color": "#f97316" }
-      ]
+        {
+          "color": "#4A4036"
+        }
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": false

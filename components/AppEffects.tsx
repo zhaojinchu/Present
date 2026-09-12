@@ -1,13 +1,20 @@
 import { useRootNavigationState, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { useCircleState } from '@/lib/circleState';
+import { UI_PREVIEW } from '@/lib/config';
 import { ensureNotificationPermission, rescheduleLocalNotifications, useNotificationRouting } from '@/lib/notifications';
 
 /** App-wide side effects. Rendered once, inside the providers, next to the root Stack. */
 export function AppEffects() {
-  useNotificationRouting();
   useLocalNotificationSync();
   useExplainPrompt();
+  if (Platform.OS === 'web') return null;
+  return <NotificationRouting />;
+}
+
+function NotificationRouting() {
+  useNotificationRouting();
   return null;
 }
 
@@ -24,7 +31,7 @@ function useLocalNotificationSync() {
         .join('|')
     : '';
   useEffect(() => {
-    if (!me || !today) return;
+    if (Platform.OS === 'web' || UI_PREVIEW || !me || !today) return;
     let cancelled = false;
     ensureNotificationPermission().then((ok) => {
       if (ok && !cancelled) rescheduleLocalNotifications(today, me);
@@ -47,7 +54,7 @@ function useExplainPrompt() {
   const shown = useRef(new Set<string>());
   const id = state?.my_unexplained_skips[0]?.id ?? null;
   useEffect(() => {
-    if (!ready || !id || shown.current.has(id)) return;
+    if (UI_PREVIEW || !ready || !id || shown.current.has(id)) return;
     shown.current.add(id);
     router.push(`/explain/${id}`);
   }, [ready, id, router]);

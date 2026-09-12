@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text } from 'rea
 import { Button, ErrorText, H1, Input, Muted, Screen, Spacer } from '@/components/ui';
 import { useSession } from '@/lib/session';
 import { errorMessage } from '@/lib/supabase';
-import { colors, space } from '@/lib/theme';
+import { colors, fonts, space } from '@/lib/theme';
 
 export default function SignUp() {
   const { signUp } = useSession();
@@ -45,7 +45,7 @@ export default function SignUp() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: space.xxl }} keyboardShouldPersistTaps="handled">
           <H1>Create account</H1>
-          <Muted style={{ marginTop: space.xs }}>Your circle sees your name and your check-in photos. Nobody else does.</Muted>
+          <Muted style={{ marginTop: space.sm, fontSize: 16, lineHeight: 22 }}>Your circle sees your name and your check-in photos. Nobody else does.</Muted>
           <Spacer h={space.xxl} />
           <Input placeholder="Display name" autoCapitalize="words" value={displayName} onChangeText={setDisplayName} />
           <Spacer h={space.sm} />
@@ -73,8 +73,8 @@ export default function SignUp() {
           <Button title="Create account" size="lg" loading={busy} onPress={onSubmit} />
           <Spacer h={space.lg} />
           <Pressable onPress={() => router.back()} hitSlop={8}>
-            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 15 }}>
-              Already have an account? <Text style={{ color: colors.accent, fontWeight: '700' }}>Sign in</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 15, fontFamily: fonts.regular }}>
+              Already have an account? <Text style={{ color: colors.accent, fontFamily: fonts.bold }}>Sign in</Text>
             </Text>
           </Pressable>
         </ScrollView>

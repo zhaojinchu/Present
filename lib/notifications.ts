@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { useRootNavigationState, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import { UI_PREVIEW } from './config';
 import type { Occurrence } from './types';
 
 // Expo Go (SDK 53+) cannot receive remote push. Everything here is LOCAL scheduling,
@@ -10,7 +11,7 @@ import type { Occurrence } from './types';
 let configured = false;
 
 export function configureNotifications() {
-  if (configured) return;
+  if (configured || UI_PREVIEW || Platform.OS === 'web') return;
   configured = true;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -29,6 +30,7 @@ export function configureNotifications() {
 }
 
 export async function ensureNotificationPermission(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
   try {
     const cur = await Notifications.getPermissionsAsync();
     if (cur.granted) return true;
@@ -47,6 +49,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
  * Called whenever today's occurrences change, so a check-in cancels the "missed" one.
  */
 export async function rescheduleLocalNotifications(todays: Occurrence[], meId: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
     const nowMs = Date.now();

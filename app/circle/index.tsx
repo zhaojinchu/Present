@@ -7,7 +7,7 @@ import { useCircleState } from '@/lib/circleState';
 import { FORFEIT_PRESETS } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, fonts, radius, space } from '@/lib/theme';
 import type { Circle } from '@/lib/types';
 
 type Mode = 'create' | 'join';
@@ -64,7 +64,7 @@ export default function CircleScreen() {
           <View style={styles.segments}>
             {(['create', 'join'] as Mode[]).map((m) => (
               <Pressable key={m} onPress={() => setMode(m)} style={[styles.segment, mode === m && styles.segmentActive]}>
-                <Text style={[styles.segmentText, mode === m && { color: colors.text }]}>{m === 'create' ? 'Create' : 'Join'}</Text>
+                <Text style={[styles.segmentText, mode === m && { color: colors.accentText }]}>{m === 'create' ? 'Create' : 'Join'}</Text>
               </Pressable>
             ))}
           </View>
@@ -121,13 +121,13 @@ function CreateForm({ onDone }: { onDone: (c: Circle) => void }) {
       {FORFEIT_PRESETS.map((f) => (
         <Pressable key={f} onPress={() => setPreset(f)}>
           <Card style={[styles.presetCard, preset === f && styles.presetActive]}>
-            <P style={{ fontWeight: '700' }}>{f}</P>
+            <P style={{ fontFamily: fonts.bold }}>{f}</P>
           </Card>
         </Pressable>
       ))}
       <Pressable onPress={() => setPreset('custom')}>
         <Card style={[styles.presetCard, preset === 'custom' && styles.presetActive]}>
-          <P style={{ fontWeight: '700' }}>Custom…</P>
+          <P style={{ fontFamily: fonts.bold }}>Custom…</P>
           {preset === 'custom' ? (
             <Input
               value={custom}
@@ -193,11 +193,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: radius.sm },
-  segmentActive: { backgroundColor: colors.cardAlt },
-  segmentText: { color: colors.muted, fontWeight: '700', fontSize: 15 },
+  segment: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: radius.sm },
+  segmentActive: { backgroundColor: colors.text },
+  segmentText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 15 },
   presetCard: { paddingVertical: 14 },
-  presetActive: { borderColor: colors.accent, backgroundColor: '#2b1d10' },
-  code: { color: colors.accent, fontSize: 44, fontWeight: '900', letterSpacing: 8, marginVertical: 8 },
-  codeInput: { fontSize: 28, letterSpacing: 8, textAlign: 'center', fontWeight: '800' },
+  presetActive: { backgroundColor: colors.accentSoft },
+  code: { color: colors.text, fontSize: 40, fontFamily: fonts.black, marginVertical: 8 },
+  codeInput: { fontSize: 28, textAlign: 'center', fontFamily: fonts.black },
 });

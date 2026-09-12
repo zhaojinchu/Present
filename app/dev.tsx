@@ -7,7 +7,7 @@ import { useNow } from '@/lib/clock';
 import { requireGeofence, setRequireGeofence, TZ } from '@/lib/config';
 import { getPosition } from '@/lib/geofence';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, fonts, radius, space } from '@/lib/theme';
 import { relative, todayKey } from '@/lib/time';
 
 interface LogLine {
@@ -123,7 +123,7 @@ export default function DevPanel() {
       <Spacer h={space.sm} />
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Text style={{ color: colors.text, fontWeight: '600' }}>Require geofence</Text>
+          <Text style={{ color: colors.text, fontFamily: fonts.bold }}>Require geofence</Text>
           <Switch
             value={geo}
             onValueChange={(v) => {
@@ -174,7 +174,7 @@ export default function DevPanel() {
       {log.length === 0 ? <Muted>Nothing yet.</Muted> : null}
       {log.map((l) => (
         <View key={l.id} style={[styles.logLine, { borderLeftColor: l.ok ? colors.green : colors.red }]}>
-          <Text style={{ color: l.ok ? colors.text : colors.red, fontSize: 13 }}>{l.text}</Text>
+          <Text style={{ color: l.ok ? colors.text : colors.red, fontSize: 13, fontFamily: fonts.regular }}>{l.text}</Text>
           <Muted style={{ fontSize: 11 }}>{new Date(l.at).toLocaleTimeString('en-US', { timeZone: TZ })}</Muted>
         </View>
       ))}
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     padding: space.md,
     marginBottom: space.lg,
   },
-  warningText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  warningText: { color: colors.white, fontFamily: fonts.black, fontSize: 15 },
   logLine: {
     borderLeftWidth: 3,
     paddingLeft: space.sm,

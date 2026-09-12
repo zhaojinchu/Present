@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius } from '@/lib/theme';
+import { colors, fonts, radius } from '@/lib/theme';
 
-/** "🔥 8" pill. A dead streak renders "💀 0" in red. */
+/** "8 day streak" chip. A dead streak renders in red. */
 export function StreakBadge({
   value,
   label,
@@ -15,11 +15,11 @@ export function StreakBadge({
   style?: StyleProp<ViewStyle>;
 }) {
   const dead = value <= 0;
-  const fontSize = size === 'lg' ? 26 : size === 'sm' ? 13 : 16;
+  const fontSize = size === 'lg' ? 22 : size === 'sm' ? 13 : 15;
   return (
     <View style={[styles.badge, dead && styles.dead, style]}>
       <Text style={[styles.text, { fontSize }, dead && { color: colors.red }]}>
-        {dead ? '💀' : '🔥'} {value}
+        {value}
         {label ? ` ${label}` : ''}
       </Text>
     </View>
@@ -28,14 +28,14 @@ export function StreakBadge({
 
 const styles = StyleSheet.create({
   badge: {
-    backgroundColor: colors.cardAlt,
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.pill,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     alignSelf: 'flex-start',
   },
-  dead: { borderColor: colors.red, backgroundColor: '#2a1214' },
-  text: { color: colors.text, fontWeight: '800' },
+  dead: { backgroundColor: colors.redSoft, borderColor: colors.red },
+  text: { color: colors.text, fontFamily: fonts.black },
 });

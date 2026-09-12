@@ -1,4 +1,5 @@
-import React from 'react';
+import { Image } from 'expo-image';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,7 +14,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, fonts, radius, space, toneFill, type as typeScale } from '@/lib/theme';
 
 export function Screen({
   children,
@@ -55,8 +56,24 @@ export function Muted({ children, style, numberOfLines }: { children: React.Reac
   );
 }
 
-export function Card({ children, style, tone }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; tone?: string }) {
-  return <View style={[styles.card, tone ? { borderColor: tone, borderLeftWidth: 4 } : null, style]}>{children}</View>;
+export function Label({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.label, style]}>{children}</Text>;
+}
+
+export function Card({
+  children,
+  style,
+  tone,
+  padded = true,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  tone?: string;
+  padded?: boolean;
+}) {
+  return (
+    <View style={[styles.card, !padded && styles.cardFlush, tone ? toneFill(tone) : null, style]}>{children}</View>
+  );
 }
 
 export function Row({ children, style, gap = space.sm }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
@@ -65,7 +82,7 @@ export function Row({ children, style, gap = space.sm }: { children: React.React
 
 export function Pill({ label, color = colors.muted, style }: { label: string; color?: string; style?: StyleProp<ViewStyle> }) {
   return (
-    <View style={[styles.pill, { borderColor: color }, style]}>
+    <View style={[styles.pill, toneFill(color), style]}>
       <Text style={[styles.pillText, { color }]}>{label}</Text>
     </View>
   );
@@ -84,28 +101,53 @@ export function Button({ title, variant = 'primary', loading, size = 'md', style
     variant === 'primary' ? colors.accent
     : variant === 'danger' ? colors.red
     : variant === 'success' ? colors.green
-    : variant === 'secondary' ? colors.cardAlt
+    : variant === 'secondary' ? colors.card
     : 'transparent';
-  const fg = variant === 'primary' || variant === 'success' ? colors.accentText : variant === 'ghost' ? colors.muted : colors.text;
-  const pad = size === 'lg' ? 18 : size === 'sm' ? 8 : 14;
+  const fg =
+    variant === 'primary' ? colors.accentText
+    : variant === 'success' ? colors.accentText
+    : variant === 'danger' ? colors.white
+    : variant === 'ghost' ? colors.muted
+    : colors.text;
+  const pad = size === 'lg' ? 16 : size === 'sm' ? 9 : 13;
   return (
     <Pressable
       {...rest}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg, paddingVertical: pad, opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
-        variant === 'ghost' && { borderWidth: 1, borderColor: colors.border },
+        { backgroundColor: bg, paddingVertical: pad, opacity: disabled ? 0.42 : pressed ? 0.82 : 1 },
+        variant === 'secondary' && { borderWidth: 1, borderColor: colors.borderStrong },
+        variant === 'ghost' && { borderWidth: 0 },
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={fg} /> : <Text style={[styles.buttonText, { color: fg, fontSize: size === 'lg' ? 18 : size === 'sm' ? 13 : 16 }]}>{title}</Text>}
+      {loading ? (
+        <ActivityIndicator color={fg} />
+      ) : (
+        <Text style={[styles.buttonText, { color: fg, fontSize: size === 'lg' ? 17 : size === 'sm' ? 14 : 16 }]}>{title}</Text>
+      )}
     </Pressable>
   );
 }
 
 export function Input(props: TextInputProps) {
-  return <TextInput placeholderTextColor={colors.faint} {...props} style={[styles.input, props.style]} />;
+  const [focused, setFocused] = useState(false);
+  return (
+    <TextInput
+      placeholderTextColor={colors.faint}
+      {...props}
+      onFocus={(e) => {
+        setFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        props.onBlur?.(e);
+      }}
+      style={[styles.input, focused && styles.inputFocused, props.style]}
+    />
+  );
 }
 
 export function Avatar({ name, uri, size = 36 }: { name: string; uri?: string | null; size?: number }) {
@@ -118,7 +160,11 @@ export function Avatar({ name, uri, size = 36 }: { name: string; uri?: string | 
     .toUpperCase();
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={{ color: colors.text, fontWeight: '700', fontSize: size * 0.4 }}>{initials || '?'}</Text>
+      {uri ? (
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+      ) : (
+        <Text style={{ color: colors.text, fontFamily: fonts.bold, fontSize: size * 0.36 }}>{initials || '?'}</Text>
+      )}
     </View>
   );
 }
@@ -138,34 +184,46 @@ export function Center({ children, style }: { children: React.ReactNode; style?:
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  h1: { color: colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
-  h2: { color: colors.text, fontSize: 20, fontWeight: '700' },
-  p: { color: colors.text, fontSize: 16, lineHeight: 22 },
-  muted: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  h1: { color: colors.text, ...typeScale.h1 },
+  h2: { color: colors.text, ...typeScale.h2 },
+  p: { color: colors.text, ...typeScale.body },
+  muted: { color: colors.muted, ...typeScale.caption },
+  label: { color: colors.muted, ...typeScale.micro },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: space.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: space.md,
   },
+  cardFlush: { padding: 0, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center' },
-  pill: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-  pillText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  pill: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  pillText: { fontSize: 13, fontFamily: fonts.bold },
   button: { borderRadius: radius.md, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { fontWeight: '700' },
+  buttonText: { fontFamily: fonts.bold },
   input: {
-    backgroundColor: colors.cardAlt,
+    backgroundColor: colors.card,
     color: colors.text,
     borderRadius: radius.md,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 16,
+    fontFamily: fonts.regular,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  avatar: { backgroundColor: colors.cardAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
-  error: { color: colors.red, marginTop: space.sm, fontSize: 14 },
+  inputFocused: { borderColor: colors.text },
+  avatar: {
+    backgroundColor: colors.cardAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  error: { color: colors.red, marginTop: space.sm, fontSize: 14, fontFamily: fonts.bold },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl },
 });

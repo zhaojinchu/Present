@@ -1,3 +1,10 @@
+import {
+  Lato_400Regular,
+  Lato_400Regular_Italic,
+  Lato_700Bold,
+  Lato_900Black,
+  useFonts,
+} from '@expo-google-fonts/lato';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
@@ -7,7 +14,7 @@ import { AppEffects } from '@/components/AppEffects';
 import { CircleStateProvider } from '@/lib/circleState';
 import { configureNotifications } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
-import { colors } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
 
 configureNotifications();
 
@@ -16,17 +23,24 @@ function HeaderClose() {
   const router = useRouter();
   return (
     <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-      <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '600' }}>Close</Text>
+      <Text style={{ color: colors.text, fontSize: 16, fontFamily: fonts.bold }}>Close</Text>
     </Pressable>
   );
 }
 
 export default function RootLayout() {
+  const [loaded] = useFonts({
+    Lato_400Regular,
+    Lato_400Regular_Italic,
+    Lato_700Bold,
+    Lato_900Black,
+  });
+  if (!loaded) return null;
   return (
     <SafeAreaProvider>
       <SessionProvider>
         <CircleStateProvider>
-          <StatusBar style="light" />
+          <StatusBar style="dark" />
           <AppEffects />
           <Stack
             screenOptions={{
@@ -34,7 +48,7 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: colors.bg },
               headerStyle: { backgroundColor: colors.bg },
               headerTintColor: colors.text,
-              headerTitleStyle: { color: colors.text },
+              headerTitleStyle: { color: colors.text, fontFamily: fonts.bold },
               headerShadowVisible: false,
             }}
           >

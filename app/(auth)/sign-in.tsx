@@ -2,15 +2,17 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text } from 'react-native';
 import { Button, ErrorText, H1, Input, Muted, Screen, Spacer } from '@/components/ui';
+import { UI_PREVIEW } from '@/lib/config';
+import { PREVIEW } from '@/lib/preview';
 import { useSession } from '@/lib/session';
 import { errorMessage } from '@/lib/supabase';
-import { colors, space } from '@/lib/theme';
+import { colors, fonts, space } from '@/lib/theme';
 
 export default function SignIn() {
   const { signIn } = useSession();
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(UI_PREVIEW ? PREVIEW.email : '');
+  const [password, setPassword] = useState(UI_PREVIEW ? PREVIEW.password : '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,8 +37,10 @@ export default function SignIn() {
     <Screen>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: space.xxl }} keyboardShouldPersistTaps="handled">
-          <H1>Present</H1>
-          <Muted style={{ marginTop: space.xs }}>Strava for showing up to class.</Muted>
+          <H1 style={{ textAlign: 'center' }}>Present.</H1>
+          <Muted style={{ marginTop: space.sm, fontSize: 16, lineHeight: 22, textAlign: 'center' }}>
+            {UI_PREVIEW ? 'UI preview. Tap Sign in. No server needed.' : 'Check in from class. Your circle sees it.'}
+          </Muted>
           <Spacer h={space.xxl} />
           <Input
             placeholder="Email"
@@ -62,8 +66,8 @@ export default function SignIn() {
           <Button title="Sign in" size="lg" loading={busy} onPress={onSubmit} />
           <Spacer h={space.lg} />
           <Pressable onPress={() => router.push('/(auth)/sign-up')} hitSlop={8}>
-            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 15 }}>
-              New here? <Text style={{ color: colors.accent, fontWeight: '700' }}>Create an account</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 15, fontFamily: fonts.regular }}>
+              New here? <Text style={{ color: colors.accent, fontFamily: fonts.bold }}>Create an account</Text>
             </Text>
           </Pressable>
         </ScrollView>

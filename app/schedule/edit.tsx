@@ -5,7 +5,7 @@ import { Button, ErrorText, Input, Muted, Row, Spacer } from '@/components/ui';
 import { deleteClass, listBuildings, listMyClasses, saveClass } from '@/lib/api/schedule';
 import { useSession } from '@/lib/session';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, fonts, radius, space } from '@/lib/theme';
 import { DOW_SHORT, fmtClock } from '@/lib/time';
 import type { Building } from '@/lib/types';
 
@@ -39,7 +39,7 @@ function TimePicker({ label, value, onChange }: { label: string; value: string; 
     <View style={{ marginBottom: space.md }}>
       <Row style={{ justifyContent: 'space-between', marginBottom: space.xs }}>
         <Muted>{label}</Muted>
-        <Text style={{ color: colors.text, fontWeight: '700' }}>{fmtClock(value)}</Text>
+        <Text style={{ color: colors.text, fontFamily: fonts.bold }}>{fmtClock(value)}</Text>
       </Row>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
         {HOURS.map((hh) => (
@@ -218,6 +218,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   chipOn: { borderColor: colors.accent, backgroundColor: colors.accent },
-  chipText: { color: colors.text, fontWeight: '600', fontSize: 14 },
+  chipText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 14 },
   chipTextOn: { color: colors.accentText },
 });

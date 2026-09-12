@@ -3,12 +3,22 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { toggleReaction } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { REACTION_EMOJI } from '@/lib/config';
-import { colors, radius } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
 import type { Reaction } from '@/lib/types';
 
-export function ReactionRow({ eventId, reactions, me }: { eventId: string; reactions: Reaction[]; me: string }) {
+export function ReactionRow({
+  eventId,
+  reactions,
+  me,
+  startExpanded = false,
+}: {
+  eventId: string;
+  reactions: Reaction[];
+  me: string;
+  startExpanded?: boolean;
+}) {
   const { refresh } = useCircleState();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(startExpanded);
   // emoji -> whether *I* have it, overriding the server until the next refresh lands
   const [override, setOverride] = useState<Record<string, boolean>>({});
 
@@ -47,14 +57,14 @@ export function ReactionRow({ eventId, reactions, me }: { eventId: string; react
         <Pressable
           key={r.emoji}
           onPress={() => onPress(r.emoji, r.mine)}
-          style={({ pressed }) => [styles.pill, r.mine && styles.mine, pressed && { opacity: 0.7 }]}
+          style={({ pressed }) => [styles.item, r.mine && styles.mine, pressed && { opacity: 0.7 }]}
         >
           <Text style={styles.emoji}>{r.emoji}</Text>
-          {r.count > 0 ? <Text style={[styles.count, r.mine && { color: colors.accent }]}>{r.count}</Text> : null}
+          {r.count > 0 ? <Text style={[styles.count, r.mine && { color: colors.text }]}>{r.count}</Text> : null}
         </Pressable>
       ))}
       {!expanded ? (
-        <Pressable onPress={() => setExpanded(true)} style={({ pressed }) => [styles.pill, styles.plus, pressed && { opacity: 0.7 }]}>
+        <Pressable onPress={() => setExpanded(true)} style={({ pressed }) => [styles.item, pressed && { opacity: 0.7 }]}>
           <Text style={styles.plusText}>+</Text>
         </Pressable>
       ) : null}
@@ -63,21 +73,10 @@ export function ReactionRow({ eventId, reactions, me }: { eventId: string; react
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  mine: { borderColor: colors.accent, backgroundColor: '#2b1d10' },
-  emoji: { fontSize: 15 },
-  count: { color: colors.muted, fontSize: 13, fontWeight: '700' },
-  plus: { paddingHorizontal: 12 },
-  plusText: { color: colors.muted, fontSize: 15, fontWeight: '700', lineHeight: 18 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, paddingHorizontal: 12 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 2 },
+  mine: { opacity: 1 },
+  emoji: { fontSize: 16 },
+  count: { color: colors.muted, fontSize: 13, fontFamily: fonts.bold },
+  plusText: { color: colors.muted, fontSize: 16, fontFamily: fonts.bold, lineHeight: 18 },
 });

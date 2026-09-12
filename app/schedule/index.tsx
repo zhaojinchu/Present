@@ -6,7 +6,7 @@ import { listMyClasses } from '@/lib/api/schedule';
 import { useCircleState } from '@/lib/circleState';
 import { useSession } from '@/lib/session';
 import { errorMessage } from '@/lib/supabase';
-import { colors, space } from '@/lib/theme';
+import { colors, fonts, space } from '@/lib/theme';
 import { fmtClock, fmtDays } from '@/lib/time';
 import type { ClassRow } from '@/lib/types';
 
@@ -72,11 +72,11 @@ export default function ScheduleScreen() {
             <Card>
               <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800' }}>{item.course_code}</Text>
+                  <Text style={{ color: colors.text, fontSize: 22, fontFamily: fonts.black }}>{item.course_code}</Text>
                   {item.name ? <Muted numberOfLines={1}>{item.name}</Muted> : null}
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: colors.text, fontWeight: '600' }}>
+                  <Text style={{ color: colors.text, fontFamily: fonts.bold }}>
                     {fmtDays(item.days_of_week)} · {fmtClock(item.start_time)} – {fmtClock(item.end_time)}
                   </Text>
                   <Muted>{item.building_code}</Muted>

@@ -1,6 +1,8 @@
 import type { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import { UI_PREVIEW } from './config';
+import { isPreviewSignedIn, PREVIEW, previewProfile, previewSignIn, previewSignOut, subscribePreview } from './preview';
 import { supabase } from './supabase';
 import type { Profile } from './types';
 
@@ -17,7 +19,68 @@ interface SessionCtx {
 
 const Ctx = createContext<SessionCtx | null>(null);
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+function previewUser(): User {
+  return {
+    id: PREVIEW.me,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: PREVIEW.email,
+    email_confirmed_at: new Date().toISOString(),
+    phone: '',
+    confirmed_at: new Date().toISOString(),
+    last_sign_in_at: new Date().toISOString(),
+    app_metadata: { provider: 'email', providers: ['email'] },
+    user_metadata: { display_name: 'Jordan' },
+    identities: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    is_anonymous: false,
+  } as User;
+}
+
+function previewSession(): Session {
+  return {
+    access_token: 'preview',
+    refresh_token: 'preview',
+    token_type: 'bearer',
+    expires_in: 999999,
+    expires_at: Math.floor(Date.now() / 1000) + 999999,
+    user: previewUser(),
+  };
+}
+
+function PreviewSessionProvider({ children }: { children: React.ReactNode }) {
+  const [signedIn, setSignedIn] = useState(isPreviewSignedIn);
+
+  useEffect(() => subscribePreview(() => setSignedIn(isPreviewSignedIn())), []);
+
+  const session = signedIn ? previewSession() : null;
+  const profile = signedIn ? previewProfile() : null;
+
+  const value = useMemo<SessionCtx>(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      profile,
+      loading: false,
+      async signIn() {
+        previewSignIn();
+      },
+      async signUp() {
+        previewSignIn();
+      },
+      async signOut() {
+        previewSignOut();
+      },
+      async refreshProfile() {},
+    }),
+    [session, profile],
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+function LiveSessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,6 +152,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function SessionProvider({ children }: { children: React.ReactNode }) {
+  if (UI_PREVIEW) return <PreviewSessionProvider>{children}</PreviewSessionProvider>;
+  return <LiveSessionProvider>{children}</LiveSessionProvider>;
 }
 
 export function useSession(): SessionCtx {

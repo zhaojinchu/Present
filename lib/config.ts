@@ -2,8 +2,17 @@
 export const TZ = 'America/New_York';
 export const PHOTO_BUCKET = 'checkin-photos';
 
-export const DEV_PANEL = process.env.EXPO_PUBLIC_DEV_PANEL === '1';
-export const REQUIRE_GEOFENCE_DEFAULT = process.env.EXPO_PUBLIC_REQUIRE_GEOFENCE !== '0';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const supabaseKeysReady =
+  supabaseUrl.startsWith('https://') && !supabaseUrl.includes('YOUR-PROJECT') && supabaseKey.length > 40;
+
+/** Local in-memory demo: every screen works with no backend. Off once real Supabase keys are set, or set EXPO_PUBLIC_UI_PREVIEW=0. */
+export const UI_PREVIEW =
+  process.env.EXPO_PUBLIC_UI_PREVIEW === '1' || (process.env.EXPO_PUBLIC_UI_PREVIEW !== '0' && !supabaseKeysReady);
+
+export const DEV_PANEL = process.env.EXPO_PUBLIC_DEV_PANEL === '1' || UI_PREVIEW;
+export const REQUIRE_GEOFENCE_DEFAULT = UI_PREVIEW ? false : process.env.EXPO_PUBLIC_REQUIRE_GEOFENCE !== '0';
 export const DUAL_CAPTURE = process.env.EXPO_PUBLIC_DUAL_CAPTURE === '1';
 
 export const FEED_POLL_MS = 5000; // always-on safety net; realtime is the accelerator

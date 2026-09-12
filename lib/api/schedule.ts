@@ -1,19 +1,31 @@
+import { UI_PREVIEW } from '../config';
+import { deletePreviewClass, getPreviewBuilding, listPreviewBuildings, listPreviewClasses, savePreviewClass } from '../preview';
 import { supabase } from '../supabase';
 import type { Building, ClassInput, ClassRow } from '../types';
 
 export async function listBuildings(): Promise<Building[]> {
+  if (UI_PREVIEW) return listPreviewBuildings();
   const { data, error } = await supabase.from('buildings').select('*').order('name');
   if (error) throw error;
   return (data as Building[]).filter((b) => b.code !== 'DEMO');
 }
 
+export async function getBuilding(code: string): Promise<Building | null> {
+  if (UI_PREVIEW) return getPreviewBuilding(code);
+  const { data, error } = await supabase.from('buildings').select('*').eq('code', code).maybeSingle();
+  if (error) throw error;
+  return (data as Building | null) ?? null;
+}
+
 export async function listMyClasses(userId: string): Promise<ClassRow[]> {
+  if (UI_PREVIEW) return listPreviewClasses();
   const { data, error } = await supabase.from('classes').select('*').eq('user_id', userId).order('start_time');
   if (error) throw error;
   return data as ClassRow[];
 }
 
 export async function saveClass(userId: string, input: ClassInput): Promise<ClassRow> {
+  if (UI_PREVIEW) return savePreviewClass(userId, input);
   const row = {
     user_id: userId,
     course_code: input.course_code.trim(),
@@ -32,6 +44,10 @@ export async function saveClass(userId: string, input: ClassInput): Promise<Clas
 }
 
 export async function deleteClass(id: string): Promise<void> {
+  if (UI_PREVIEW) {
+    deletePreviewClass(id);
+    return;
+  }
   const { error } = await supabase.from('classes').delete().eq('id', id);
   if (error) throw error;
 }

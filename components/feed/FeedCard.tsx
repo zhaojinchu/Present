@@ -1,15 +1,15 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Avatar, Button, Card, ErrorText, Muted, P, Row } from '@/components/ui';
-import { markForfeitPaid } from '@/lib/api/circle';
+import { ErrorText } from '@/components/ui';
+import { markForfeitPaid, toggleReaction } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
-import { fmtTime, relative } from '@/lib/time';
+import { colors, fonts } from '@/lib/theme';
+import { fmtTime } from '@/lib/time';
 import type { FeedEvent, Forfeit, Member, Reaction } from '@/lib/types';
-import { Photo } from './Photo';
-import { ReactionRow } from './ReactionRow';
+import { BeRealMedia } from './BeRealMedia';
+import { IgPost, likedByLine } from './IgPost';
 
 interface Props {
   event: FeedEvent;
@@ -20,119 +20,243 @@ interface Props {
   nowMs?: number;
 }
 
-export function FeedCard({ event, me, members, forfeits, reactions, nowMs = Date.now() }: Props) {
-  const p = event.payload;
-  const name = p.display_name ?? members.find((m) => m.id === event.actor_id)?.display_name ?? 'Someone';
-  const when = relative(event.created_at, nowMs);
+function useHeart(eventId: string, reactions: Reaction[], me: string, members: Member[]) {
+  const { refresh } = useCircleState();
+  const [override, setOverride] = useState<boolean | null>(null);
+  const forEvent = reactions.filter((r) => r.feed_event_id === eventId);
+  const serverMine = forEvent.some((r) => r.user_id === me && r.emoji === '🔥');
+  const liked = override ?? serverMine;
+  const others = [...new Set(forEvent.filter((r) => r.user_id !== me && r.emoji === '🔥').map((r) => r.user_id))]
+    .map((id) => members.find((m) => m.id === id)?.display_name)
+    .filter((n): n is string => !!n);
 
-  let body: React.ReactNode;
-  switch (event.type) {
-    case 'checkin':
-      body = <CheckinBody event={event} name={name} when={when} />;
-      break;
-    case 'skip':
-      body = <SkipBody event={event} name={name} when={when} me={me} />;
-      break;
-    case 'forfeit_owed':
-      body = <ForfeitOwedBody event={event} name={name} when={when} me={me} forfeits={forfeits} />;
-      break;
-    case 'explanation':
-      body = (
-        <Card style={styles.quoteCard}>
-          <Muted style={styles.meta}>{when}</Muted>
-          <P style={styles.quote}>
-            <Text style={styles.name}>{name}: </Text>“{p.text ?? ''}”
-          </P>
-          <ReactionRow eventId={event.id} reactions={reactions} me={me} />
-        </Card>
-      );
-      break;
-    case 'excused':
-      body = (
-        <Card tone={colors.blue} style={styles.mutedCard}>
-          <Muted style={styles.meta}>{when}</Muted>
-          <P>
-            <Text style={styles.name}>{name}</Text> is excused from {p.course_code ?? 'class'}{' '}
-            <Text style={{ color: colors.muted }}>(sick / emergency)</Text>
-          </P>
-          <ReactionRow eventId={event.id} reactions={reactions} me={me} />
-        </Card>
-      );
-      break;
-    case 'forfeit_paid':
-      body = (
-        <Card tone={colors.green}>
-          <Muted style={styles.meta}>{when}</Muted>
-          <P>
-            <Text style={styles.name}>{name}</Text> paid up{' '}
-            <Text style={{ color: colors.green, fontWeight: '800' }}>✓</Text>
-            {p.paid_by_name ? <Text style={{ color: colors.muted }}> · confirmed by {p.paid_by_name}</Text> : null}
-          </P>
-          {p.description ? <Muted style={{ marginTop: 4 }}>{p.description}</Muted> : null}
-          <ReactionRow eventId={event.id} reactions={reactions} me={me} />
-        </Card>
-      );
-      break;
-    case 'member_joined':
-      body = (
-        <View style={styles.oneLiner}>
-          <Muted>
-            <Text style={{ color: colors.text, fontWeight: '700' }}>{name}</Text> {p.created ? 'created the circle' : 'joined the circle'} · {when}
-          </Muted>
-        </View>
-      );
-      break;
-    default:
-      body = (
-        <Card>
-          <Muted>{when}</Muted>
-          <P>{name}</P>
-        </Card>
-      );
-  }
-  return <>{body}</>;
+  const setLiked = async (next: boolean) => {
+    if (liked === next) return;
+    setOverride(next);
+    try {
+      await toggleReaction(eventId, '🔥');
+      await refresh();
+    } catch {
+      setOverride(null);
+      return;
+    }
+    setOverride(null);
+  };
+
+  return {
+    liked,
+    likedBy: likedByLine(others, liked),
+    onLike: () => setLiked(!liked),
+    onDoubleLike: () => setLiked(true),
+  };
 }
 
-// ---------------------------------------------------------------- check-in
-
-function CheckinBody({ event, name, when }: { event: FeedEvent; name: string; when: string }) {
-  const { state } = useCircleState();
+export function FeedCard({ event, me, members, forfeits, reactions, nowMs = Date.now() }: Props) {
   const p = event.payload;
+  const member = members.find((m) => m.id === event.actor_id);
+  const name = p.display_name ?? member?.display_name ?? 'Someone';
+  const avatarUri = member?.avatar_url ?? p.avatar_url;
+  const heart = useHeart(event.id, reactions, me, members);
+
+  const common = {
+    name,
+    avatarUri,
+    createdAt: event.created_at,
+    nowMs,
+    liked: heart.liked,
+    likedBy: heart.likedBy,
+    eventId: event.id,
+    reactions,
+    me,
+    onLike: heart.onLike,
+  };
+
+  switch (event.type) {
+    case 'checkin':
+      return (
+        <IgPost
+          {...common}
+          location={p.course_code ?? 'class'}
+          caption={
+            <>
+              {p.course_code ?? 'class'}
+              {typeof p.personal_streak_after === 'number' ? `  🔥 ${p.personal_streak_after}` : ''}
+              {p.in_geofence === false ? '  outside the building' : ''}
+            </>
+          }
+        >
+          <BeRealMedia face={p.photo_path} room={p.photo_back_path} onDoubleLike={heart.onDoubleLike} />
+        </IgPost>
+      );
+    case 'skip':
+      return <SkipPost event={event} {...common} />;
+    case 'forfeit_owed':
+      return <ForfeitPost event={event} forfeits={forfeits} {...common} />;
+    case 'explanation':
+      return (
+        <IgPost {...common} location={p.course_code ?? undefined} caption={`"${p.text ?? ''}"`} />
+      );
+    case 'excused':
+      return (
+        <IgPost
+          {...common}
+          location={p.course_code ?? undefined}
+          caption={`excused from ${p.course_code ?? 'class'} (sick / emergency)`}
+        />
+      );
+    case 'forfeit_paid':
+      return (
+        <IgPost
+          {...common}
+          caption={
+            <>
+              paid up{p.description ? ` · ${p.description}` : ''}
+              {p.paid_by_name ? ` · confirmed by ${p.paid_by_name}` : ''}
+            </>
+          }
+        />
+      );
+    case 'member_joined':
+      return (
+        <IgPost {...common} caption={p.created ? 'created the circle' : 'joined the circle'} />
+      );
+    default:
+      return <IgPost {...common} caption={name} />;
+  }
+}
+
+function SkipPost({
+  event,
+  ...common
+}: {
+  event: FeedEvent;
+  name: string;
+  me: string;
+  avatarUri?: string | null;
+  createdAt: string;
+  nowMs: number;
+  liked: boolean;
+  likedBy: string | null;
+  eventId: string;
+  reactions: Reaction[];
+  onLike: () => void;
+}) {
+  const { state } = useCircleState();
+  const router = useRouter();
+  const p = event.payload;
+  const unexplained = event.actor_id === common.me && !!event.ref_id && (state?.my_unexplained_skips ?? []).some((s) => s.id === event.ref_id);
+  const before = p.circle_streak_before ?? 0;
   return (
-    <Card>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row gap={10}>
-          <Avatar name={name} uri={p.avatar_url} size={34} />
-          <View>
-            <P>
-              <Text style={styles.name}>{name}</Text> checked in to {p.course_code ?? 'class'}
-            </P>
-            <Muted style={styles.meta}>{when}</Muted>
-          </View>
-        </Row>
-      </Row>
-      <View style={{ marginTop: space.md }}>
-        <Photo path={p.photo_path} />
-        {p.photo_back_path ? <Photo path={p.photo_back_path} style={styles.backInset} /> : null}
+    <IgPost
+      {...common}
+      location={p.course_code ?? 'class'}
+      caption={
+        <>
+          didn't check in
+          {p.starts_at ? ` · ${fmtTime(p.starts_at)}` : ''}
+          {typeof p.personal_streak_before === 'number' ? ` · streak ${p.personal_streak_before} → 0` : ''}
+        </>
+      }
+      extra={
+        unexplained ? (
+          <Pressable onPress={() => router.push(`/explain/${event.ref_id}` as never)} style={styles.linkWrap}>
+            <Text style={styles.dangerLink}>Explain yourself</Text>
+          </Pressable>
+        ) : null
+      }
+    >
+      <View style={styles.missed}>
+        <Text style={styles.missedName}>{common.name}</Text>
+        <Text style={styles.missedLine}>didn't check in</Text>
+        <View style={styles.streakRow}>
+          <Text style={styles.streakLine}>🔥 {before}</Text>
+          <Text style={styles.streakLine}>→</Text>
+          <DyingNumber from={before} />
+        </View>
       </View>
-      <Row style={{ marginTop: space.md }} gap={8}>
-        {typeof p.personal_streak_after === 'number' ? (
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>🔥 {p.personal_streak_after}</Text>
-          </View>
-        ) : null}
-        {p.in_geofence === false ? (
-          <View style={[styles.chip, { borderColor: colors.faint }]}>
-            <Text style={[styles.chipText, { color: colors.muted }]}>outside geofence</Text>
-          </View>
-        ) : null}
-      </Row>
-      <ReactionRow eventId={event.id} reactions={state?.reactions ?? []} me={state?.me ?? ''} />
-    </Card>
+    </IgPost>
   );
 }
 
-// ---------------------------------------------------------------- skip
+function ForfeitPost({
+  event,
+  forfeits,
+  ...common
+}: {
+  event: FeedEvent;
+  forfeits: Forfeit[];
+  name: string;
+  me: string;
+  avatarUri?: string | null;
+  createdAt: string;
+  nowMs: number;
+  liked: boolean;
+  likedBy: string | null;
+  eventId: string;
+  reactions: Reaction[];
+  onLike: () => void;
+}) {
+  const { refresh } = useCircleState();
+  const router = useRouter();
+  const p = event.payload;
+  const forfeit = forfeits.find((f) => f.id === p.forfeit_id);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const status = forfeit?.status ?? 'owed';
+  const owedByMe = forfeit ? forfeit.owed_by === common.me : event.actor_id === common.me;
+  const description = forfeit?.description ?? p.description ?? '';
+
+  const pay = async () => {
+    if (!forfeit) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await markForfeitPaid(forfeit.id);
+      await refresh();
+    } catch (e) {
+      setErr(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <IgPost
+      {...common}
+      caption={
+        status === 'paid' ? (
+          <>
+            {description} <Text style={{ color: colors.green, fontFamily: fonts.bold }}>Paid</Text>
+          </>
+        ) : status === 'voided' ? (
+          `${description} was voided (excused)`
+        ) : (
+          <>
+            owes <Text style={{ color: colors.amber, fontFamily: fonts.bold }}>{description}</Text>
+          </>
+        )
+      }
+      extra={
+        <>
+          {status === 'owed' && !owedByMe ? (
+            <Pressable onPress={pay} disabled={busy} style={styles.linkWrap}>
+              <Text style={styles.blueLink}>{busy ? 'Marking…' : 'Mark paid'}</Text>
+            </Pressable>
+          ) : null}
+          {status === 'owed' && owedByMe ? (
+            <Text style={styles.hint}>Someone else in the circle clears this.</Text>
+          ) : null}
+          <ErrorText>{err}</ErrorText>
+          {p.forfeit_id ? (
+            <Pressable onPress={() => router.push(`/forfeit/${p.forfeit_id}` as never)} style={styles.linkWrap}>
+              <Text style={styles.mutedLink}>View forfeit</Text>
+            </Pressable>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
 
 function DyingNumber({ from }: { from: number }) {
   const anim = useRef(new Animated.Value(from)).current;
@@ -156,149 +280,23 @@ function DyingNumber({ from }: { from: number }) {
   );
 }
 
-function SkipBody({ event, name, when, me }: { event: FeedEvent; name: string; when: string; me: string }) {
-  const { state } = useCircleState();
-  const router = useRouter();
-  const p = event.payload;
-  const unexplained = event.actor_id === me && !!event.ref_id && (state?.my_unexplained_skips ?? []).some((s) => s.id === event.ref_id);
-  const before = p.circle_streak_before ?? 0;
-  return (
-    <Card tone={colors.red} style={styles.skipCard}>
-      <Muted style={styles.meta}>{when}</Muted>
-      <P>
-        <Text style={styles.name}>{name}</Text> skipped {p.course_code ?? 'class'}
-        {p.starts_at ? ` at ${fmtTime(p.starts_at)}` : ''}
-      </P>
-      <Row style={{ marginTop: space.sm }} gap={6}>
-        <Text style={styles.streakLine}>Circle streak</Text>
-        <Text style={styles.streakLine}>🔥 {before}</Text>
-        <Text style={styles.streakLine}>→</Text>
-        <DyingNumber from={before} />
-      </Row>
-      {typeof p.personal_streak_before === 'number' ? (
-        <Muted style={{ marginTop: 4 }}>
-          {name}'s streak: {p.personal_streak_before} → 0
-        </Muted>
-      ) : null}
-      {unexplained ? (
-        <Button
-          title="Explain yourself"
-          variant="danger"
-          size="sm"
-          style={{ marginTop: space.md, alignSelf: 'flex-start' }}
-          onPress={() => router.push(`/explain/${event.ref_id}` as never)}
-        />
-      ) : null}
-      <ReactionRow eventId={event.id} reactions={state?.reactions ?? []} me={me} />
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------- forfeit owed
-
-function ForfeitOwedBody({
-  event,
-  name,
-  when,
-  me,
-  forfeits,
-}: {
-  event: FeedEvent;
-  name: string;
-  when: string;
-  me: string;
-  forfeits: Forfeit[];
-}) {
-  const { state, refresh } = useCircleState();
-  const router = useRouter();
-  const p = event.payload;
-  const forfeit = forfeits.find((f) => f.id === p.forfeit_id);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const status = forfeit?.status ?? 'owed';
-  const owedByMe = forfeit ? forfeit.owed_by === me : event.actor_id === me;
-  const description = forfeit?.description ?? p.description ?? '';
-
-  const pay = async () => {
-    if (!forfeit) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      await markForfeitPaid(forfeit.id);
-      await refresh();
-    } catch (e) {
-      setErr(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const tone = status === 'paid' ? colors.green : status === 'voided' ? colors.faint : colors.amber;
-  return (
-    <Pressable onPress={() => p.forfeit_id && router.push(`/forfeit/${p.forfeit_id}` as never)}>
-      <Card tone={tone}>
-        <Muted style={styles.meta}>{when}</Muted>
-        {status === 'owed' ? (
-          <>
-            <P>
-              <Text style={styles.name}>{name}</Text> owes: <Text style={{ color: colors.amber, fontWeight: '800' }}>{description}</Text>
-            </P>
-            {owedByMe ? (
-              <Muted style={{ marginTop: space.sm }}>Someone else in the circle clears this.</Muted>
-            ) : (
-              <Button
-                title="Mark paid"
-                variant="success"
-                size="sm"
-                loading={busy}
-                style={{ marginTop: space.md, alignSelf: 'flex-start' }}
-                onPress={pay}
-              />
-            )}
-            <ErrorText>{err}</ErrorText>
-          </>
-        ) : status === 'paid' ? (
-          <P>
-            <Text style={styles.name}>{name}</Text>: {description}{' '}
-            <Text style={{ color: colors.green, fontWeight: '800' }}>Paid ✓</Text>
-            {forfeit?.paid_by_name ? <Text style={{ color: colors.muted }}> confirmed by {forfeit.paid_by_name}</Text> : null}
-          </P>
-        ) : (
-          <Muted>
-            {name}'s forfeit ({description}) was voided (excused).
-          </Muted>
-        )}
-        <ReactionRow eventId={event.id} reactions={state?.reactions ?? []} me={me} />
-      </Card>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  name: { fontWeight: '800', color: colors.text },
-  meta: { fontSize: 12, marginBottom: 4 },
-  quoteCard: { backgroundColor: colors.cardAlt, marginLeft: space.lg },
-  quote: { fontStyle: 'italic' },
-  mutedCard: { opacity: 0.9 },
-  oneLiner: { paddingVertical: 6, paddingHorizontal: 4, marginBottom: space.md },
-  backInset: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: '32%',
-    borderWidth: 2,
-    borderColor: colors.bg,
+  missed: {
+    aspectRatio: 4 / 5,
+    width: '100%',
+    backgroundColor: '#111',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
   },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  chipText: { color: colors.text, fontWeight: '700', fontSize: 13 },
-  skipCard: { backgroundColor: '#1f1416' },
-  streakLine: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  dying: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  missedName: { color: colors.white, fontSize: 22, fontFamily: fonts.bold },
+  missedLine: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontFamily: fonts.regular, marginTop: 6 },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 },
+  streakLine: { color: colors.white, fontSize: 22, fontFamily: fonts.black },
+  dying: { color: colors.white, fontSize: 22, fontFamily: fonts.black },
+  linkWrap: { paddingHorizontal: 12, paddingTop: 8 },
+  blueLink: { color: colors.igBlue, fontSize: 14, fontFamily: fonts.bold },
+  dangerLink: { color: colors.like, fontSize: 14, fontFamily: fonts.bold },
+  mutedLink: { color: colors.igMuted, fontSize: 13, fontFamily: fonts.bold },
+  hint: { color: colors.igMuted, fontSize: 13, fontFamily: fonts.regular, paddingHorizontal: 12, paddingTop: 6 },
 });

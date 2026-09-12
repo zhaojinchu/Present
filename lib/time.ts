@@ -63,6 +63,29 @@ export function relative(v: string | number | Date, nowMs = Date.now()): string 
   return `${dayLabel(d, nowMs)} ${fmtTime(d)}`;
 }
 
+const igDateFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'long', day: 'numeric' });
+
+/** Instagram-style timestamp: "2 hours ago", "1 day ago", "September 3". */
+export function igTime(v: string | number | Date, nowMs = Date.now()): string {
+  const d = toDate(v);
+  if (!valid(d)) return '';
+  const diff = nowMs - d.getTime();
+  if (diff < 45_000) return 'just now';
+  if (diff < 3_600_000) {
+    const m = Math.max(1, Math.round(diff / 60_000));
+    return m === 1 ? '1 minute ago' : `${m} minutes ago`;
+  }
+  if (diff < 86_400_000) {
+    const h = Math.max(1, Math.round(diff / 3_600_000));
+    return h === 1 ? '1 hour ago' : `${h} hours ago`;
+  }
+  if (diff < 7 * 86_400_000) {
+    const days = Math.max(1, Math.round(diff / 86_400_000));
+    return days === 1 ? '1 day ago' : `${days} days ago`;
+  }
+  return igDateFmt.format(d);
+}
+
 export const DOW_SHORT = ['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa'];
 export const DOW_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

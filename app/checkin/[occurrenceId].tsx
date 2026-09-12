@@ -10,12 +10,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Panel } from '@/components/checkin/Panel';
 import { Button, Center, Muted, Screen, Spacer } from '@/components/ui';
 import { submitCheckin } from '@/lib/api/checkin';
+import { getBuilding } from '@/lib/api/schedule';
 import { useCircleState } from '@/lib/circleState';
 import { useNow } from '@/lib/clock';
-import { DUAL_CAPTURE, requireGeofence } from '@/lib/config';
+import { DUAL_CAPTURE, requireGeofence, UI_PREVIEW } from '@/lib/config';
+import { PREVIEW, previewPhotoUrl } from '@/lib/preview';
+import { bundledSceneSource } from '@/lib/scenePhotos';
 import { evaluate, GeoError, getPosition } from '@/lib/geofence';
-import { errorMessage, supabase } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { errorMessage } from '@/lib/supabase';
+import { colors, fonts, radius, space } from '@/lib/theme';
 import { fmtCountdown } from '@/lib/time';
 import type { Building } from '@/lib/types';
 
@@ -80,13 +83,7 @@ export default function CheckinScreen() {
     if (!occurrence || startedRef.current) return;
     startedRef.current = true;
     startGps();
-    buildingRef.current = track(
-      (async () => {
-        const { data, error } = await supabase.from('buildings').select('*').eq('code', occurrence.building_code).maybeSingle();
-        if (error) throw error;
-        return (data as Building | null) ?? null;
-      })(),
-    );
+    buildingRef.current = track(getBuilding(occurrence.building_code));
   }, [occurrence, startGps]);
 
   // Auto-leave after success. Go back to where we came from (Home) rather than replace('/(tabs)'),
@@ -320,6 +317,9 @@ export default function CheckinScreen() {
         message="Present checks you in with a photo from inside the room. Allow camera access to continue."
         actions={[
           ...(perm.canAskAgain ? [{ title: 'Allow camera', onPress: () => requestPerm().catch(() => {}) }] : [{ title: 'Open Settings', onPress: openSettings }]),
+          ...(UI_PREVIEW
+            ? [{ title: 'Use a sample photo', onPress: () => setPhase({ kind: 'preview', front: PREVIEW.samplePhoto, back: PREVIEW.samplePhotoBack }) }]
+            : []),
           { title: 'Close', onPress: close, variant: 'ghost' },
         ]}
       />
@@ -337,12 +337,13 @@ export default function CheckinScreen() {
   }
 
   if (phase.kind === 'submitting') {
+    const main = phase.back ?? phase.front;
     return (
       <View style={styles.fill}>
-        <Image source={{ uri: phase.front }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <Image source={{ uri: main }} style={StyleSheet.absoluteFill} contentFit="cover" />
         <View style={styles.dim} />
         <Center>
-          <ActivityIndicator color={colors.accent} size="large" />
+          <ActivityIndicator color={colors.white} size="large" />
           <Spacer />
           <Text style={styles.overlayTitle}>{phase.label}…</Text>
           <Muted>Hold on a second</Muted>
@@ -353,17 +354,17 @@ export default function CheckinScreen() {
 
   if (phase.kind === 'preview') {
     return (
-      <View style={styles.fill}>
-        <Image source={{ uri: phase.front }} style={StyleSheet.absoluteFill} contentFit="cover" />
-        {phase.back ? <Image source={{ uri: phase.back }} style={[styles.inset, { top: insets.top + 12 }]} contentFit="cover" /> : null}
-        <View style={[styles.previewBar, { paddingBottom: insets.bottom + space.lg }]}>
-          <Button title="Retake" variant="secondary" size="lg" style={styles.previewButton} onPress={() => {
-          setCameraReady(false); // the CameraView remounts; wait for its onCameraReady again
+      <PreviewPhotos
+        front={phase.front}
+        back={phase.back}
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        onRetake={() => {
+          setCameraReady(false);
           setPhase({ kind: 'camera' });
-        }} />
-          <Button title="Use photo" size="lg" style={styles.previewButton} onPress={() => submit(phase.front, phase.back)} />
-        </View>
-      </View>
+        }}
+        onUse={() => submit(phase.front, phase.back)}
+      />
     );
   }
 
@@ -384,7 +385,7 @@ export default function CheckinScreen() {
 
       <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
         <Pressable onPress={close} hitSlop={12} style={styles.iconButton}>
-          <Ionicons name="close" size={26} color={colors.text} />
+          <Ionicons name="close" size={26} color={colors.white} />
         </Pressable>
         <View style={styles.headerText}>
           <Text style={styles.course}>{occurrence.course_code}</Text>
@@ -403,7 +404,7 @@ export default function CheckinScreen() {
           style={({ pressed }) => [styles.shutter, { opacity: canCapture ? (pressed ? 0.7 : 1) : 0.4 }]}
           accessibilityLabel="Take photo"
         >
-          {capturing ? <ActivityIndicator color={colors.accentText} /> : <View style={styles.shutterInner} />}
+          {capturing ? <ActivityIndicator color={colors.text} /> : <View style={styles.shutterInner} />}
         </Pressable>
         <View style={styles.sideSlot}>
           <Pressable
@@ -413,14 +414,21 @@ export default function CheckinScreen() {
             style={styles.iconButton}
             accessibilityLabel="Flip camera"
           >
-            <Ionicons name="camera-reverse" size={28} color={colors.text} />
+            <Ionicons name="camera-reverse" size={28} color={colors.white} />
           </Pressable>
         </View>
       </View>
 
       {!cameraReady ? (
         <View style={styles.readyOverlay} pointerEvents="none">
-          <ActivityIndicator color={colors.text} />
+          <ActivityIndicator color={colors.white} />
+        </View>
+      ) : null}
+      {UI_PREVIEW && !notOpen ? (
+        <View style={styles.hint}>
+          <Pressable onPress={() => setPhase({ kind: 'preview', front: PREVIEW.samplePhoto, back: PREVIEW.samplePhotoBack })}>
+            <Text style={styles.hintText}>Simulator? Use a sample photo</Text>
+          </Pressable>
         </View>
       ) : null}
       {notOpen ? (
@@ -432,10 +440,46 @@ export default function CheckinScreen() {
   );
 }
 
+function PreviewPhotos({
+  front,
+  back,
+  insetsTop,
+  insetsBottom,
+  onRetake,
+  onUse,
+}: {
+  front: string;
+  back: string | null;
+  insetsTop: number;
+  insetsBottom: number;
+  onRetake: () => void;
+  onUse: () => void;
+}) {
+  const [swapped, setSwapped] = useState(false);
+  const main = swapped ? front : (back ?? front);
+  const pip = back ? (swapped ? back : front) : null;
+  return (
+    <View style={styles.fill}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => back && setSwapped((s) => !s)}>
+        <Image source={bundledSceneSource(main) ?? { uri: previewPhotoUrl(main) ?? main }} style={StyleSheet.absoluteFill} contentFit="cover" />
+      </Pressable>
+      {pip ? (
+        <Pressable onPress={() => setSwapped((s) => !s)} style={[styles.inset, { top: insetsTop + 12 }]}>
+          <Image source={bundledSceneSource(pip) ?? { uri: previewPhotoUrl(pip) ?? pip }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        </Pressable>
+      ) : null}
+      <View style={[styles.previewBar, { paddingBottom: insetsBottom + space.lg }]}>
+        <Button title="Retake" variant="secondary" size="lg" style={styles.previewButton} onPress={onRetake} />
+        <Button title="Use photo" size="lg" style={styles.previewButton} onPress={onUse} />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.bg },
-  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,15,18,0.72)' },
-  overlayTitle: { color: colors.text, fontSize: 22, fontWeight: '700', marginBottom: space.xs },
+  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.overlay },
+  overlayTitle: { color: colors.white, fontSize: 22, fontFamily: fonts.bold, marginBottom: space.xs },
   header: {
     position: 'absolute',
     top: 0,
@@ -447,23 +491,23 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   headerText: { flex: 1 },
-  course: { color: colors.text, fontSize: 20, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
-  building: { color: colors.text, fontSize: 13, opacity: 0.85, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  course: { color: colors.white, fontSize: 20, fontFamily: fonts.black, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  building: { color: colors.white, fontSize: 13, fontFamily: fonts.regular, opacity: 0.85, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
   countdown: {
-    backgroundColor: 'rgba(15,15,18,0.7)',
+    backgroundColor: colors.overlayHeavy,
     borderRadius: radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: colors.white,
   },
   countdownWaiting: { borderColor: colors.muted },
-  countdownText: { color: colors.text, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  countdownText: { color: colors.white, fontFamily: fonts.bold, fontVariant: ['tabular-nums'] },
   iconButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(15,15,18,0.55)',
+    backgroundColor: colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -482,18 +526,19 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.white,
     borderWidth: 5,
     borderColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent },
+  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.white },
   readyOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   hint: { position: 'absolute', bottom: 150, left: 0, right: 0, alignItems: 'center' },
   hintText: {
-    color: colors.text,
-    backgroundColor: 'rgba(15,15,18,0.7)',
+    color: colors.white,
+    fontFamily: fonts.regular,
+    backgroundColor: colors.overlayHeavy,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radius.pill,
@@ -506,7 +551,8 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: radius.md,
     borderWidth: 2,
-    borderColor: colors.text,
+    borderColor: colors.white,
+    overflow: 'hidden',
   },
   previewBar: {
     position: 'absolute',
@@ -517,7 +563,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
-    backgroundColor: 'rgba(15,15,18,0.75)',
+    backgroundColor: colors.overlayHeavy,
   },
   previewButton: { flex: 1 },
 });

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { PHOTO_BUCKET } from './config';
+import { PHOTO_BUCKET, UI_PREVIEW } from './config';
+import { previewPhotoUrl } from './preview';
 import { supabase } from './supabase';
 
 // Signed URLs are valid for an hour; cache them so polling never re-signs.
 const cache = new Map<string, { url: string; exp: number }>();
 
 export async function signedUrl(path: string | null | undefined): Promise<string | null> {
+  if (UI_PREVIEW) return previewPhotoUrl(path);
   if (!path) return null;
   const hit = cache.get(path);
   if (hit && hit.exp > Date.now()) return hit.url;
@@ -16,7 +18,7 @@ export async function signedUrl(path: string | null | undefined): Promise<string
 }
 
 export function usePhotoUrl(path: string | null | undefined): string | null {
-  const [url, setUrl] = useState<string | null>(() => (path ? cache.get(path)?.url ?? null : null));
+  const [url, setUrl] = useState<string | null>(() => (UI_PREVIEW ? previewPhotoUrl(path) : path ? cache.get(path)?.url ?? null : null));
   useEffect(() => {
     let alive = true;
     if (!path) {

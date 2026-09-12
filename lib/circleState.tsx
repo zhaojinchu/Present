@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { setServerTime } from './clock';
-import { FEED_POLL_DEGRADED_MS, FEED_POLL_MS } from './config';
+import { FEED_POLL_DEGRADED_MS, FEED_POLL_MS, UI_PREVIEW } from './config';
+import { getPreviewState, isPreviewSignedIn, subscribePreview } from './preview';
 import { useSession } from './session';
 import { supabase } from './supabase';
 import { todayKey } from './time';
@@ -20,7 +21,48 @@ interface CircleStateCtx {
 
 const Ctx = createContext<CircleStateCtx | null>(null);
 
+function PreviewCircleStateProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<CircleState | null>(() => (isPreviewSignedIn() ? getPreviewState() : null));
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => Date.now());
+
+  useEffect(() => {
+    return subscribePreview(() => {
+      if (!isPreviewSignedIn()) {
+        setState(null);
+        return;
+      }
+      const next = getPreviewState();
+      setServerTime(next.server_time);
+      setState(next);
+      setLastFetchedAt(Date.now());
+    });
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!isPreviewSignedIn()) {
+      setState(null);
+      return null;
+    }
+    const next = getPreviewState();
+    setServerTime(next.server_time);
+    setState(next);
+    setLastFetchedAt(Date.now());
+    return next;
+  }, []);
+
+  const value = useMemo<CircleStateCtx>(
+    () => ({ state, loading: false, live: true, error: null, lastFetchedAt, refresh }),
+    [state, lastFetchedAt, refresh],
+  );
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
 export function CircleStateProvider({ children }: { children: React.ReactNode }) {
+  if (UI_PREVIEW) return <PreviewCircleStateProvider>{children}</PreviewCircleStateProvider>;
+  return <LiveCircleStateProvider>{children}</LiveCircleStateProvider>;
+}
+
+function LiveCircleStateProvider({ children }: { children: React.ReactNode }) {
   const { session } = useSession();
   const userId = session?.user.id ?? null;
   const accessToken = session?.access_token ?? null;

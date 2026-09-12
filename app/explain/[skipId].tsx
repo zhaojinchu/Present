@@ -6,7 +6,7 @@ import { excuseSkip, explainSkip } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { EXPLANATION_MAX } from '@/lib/config';
 import { errorMessage } from '@/lib/supabase';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, fonts, radius, space } from '@/lib/theme';
 import { fmtTime } from '@/lib/time';
 import type { UnexplainedSkip } from '@/lib/types';
 
@@ -120,6 +120,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 14,
     fontSize: 18,
+    fontFamily: fonts.regular,
     minHeight: 110,
     textAlignVertical: 'top',
   },

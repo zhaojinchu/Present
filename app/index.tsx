@@ -3,6 +3,7 @@ import React from 'react';
 import { ActivityIndicator } from 'react-native';
 import { Button, Center, Muted, P, Screen, Spacer } from '@/components/ui';
 import { useCircleState } from '@/lib/circleState';
+import { UI_PREVIEW } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { supabaseConfigured } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -22,7 +23,7 @@ export default function Index() {
   const { session, loading } = useSession();
   const { state, loading: stateLoading, error, refresh } = useCircleState();
 
-  if (!supabaseConfigured) {
+  if (!UI_PREVIEW && !supabaseConfigured) {
     return (
       <Screen>
         <Center>
@@ -56,5 +57,5 @@ export default function Index() {
   }
   if (!state.circle) return <Redirect href="/circle" />;
   if (state.my_class_count === 0) return <Redirect href="/schedule?onboarding=1" />;
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href="/(tabs)/feed" />;
 }

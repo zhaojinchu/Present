@@ -1,7 +1,8 @@
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { PHOTO_BUCKET } from '../config';
+import { PHOTO_BUCKET, UI_PREVIEW } from '../config';
+import { previewSubmitCheckin } from '../preview';
 import { supabase } from '../supabase';
 
 /** Resize + recompress so uploads are ~150 KB instead of 2–4 MB. */
@@ -49,6 +50,10 @@ export interface CheckinArgs {
  * flips the occurrence to checked_in and writes the feed event; its error text is user-facing.
  */
 export async function submitCheckin(args: CheckinArgs): Promise<void> {
+  if (UI_PREVIEW) {
+    previewSubmitCheckin(args);
+    return;
+  }
   const front = photoPath(args.userId, args.occurrenceId);
   const back = args.backUri ? photoPath(args.userId, args.occurrenceId, 'back') : null;
   await uploadPhoto(args.frontUri, front);

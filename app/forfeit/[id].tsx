@@ -5,7 +5,7 @@ import { Button, Card, Center, ErrorText, H1, H2, Muted, P, Pill, Row, Screen, S
 import { markForfeitPaid } from '@/lib/api/circle';
 import { useCircleState } from '@/lib/circleState';
 import { errorMessage } from '@/lib/supabase';
-import { colors, space, statusColor } from '@/lib/theme';
+import { colors, fonts, space, statusColor } from '@/lib/theme';
 import { dayLabel, fmtTime, relative } from '@/lib/time';
 
 export default function ForfeitDetail() {
@@ -54,7 +54,7 @@ export default function ForfeitDetail() {
           <Pill label={forfeit.status} color={statusColor[forfeit.status] ?? colors.muted} />
         </Row>
         <Spacer h={space.sm} />
-        <Text style={{ color: colors.amber, fontSize: 24, fontWeight: '800' }}>{forfeit.description}</Text>
+        <Text style={{ color: colors.amber, fontSize: 26, fontFamily: fonts.black }}>{forfeit.description}</Text>
         <Spacer />
         <Card>
           <Muted>Skipped</Muted>
@@ -86,7 +86,7 @@ export default function ForfeitDetail() {
         ) : forfeit.status === 'paid' ? (
           <Card tone={colors.green}>
             <P>
-              Paid <Text style={{ color: colors.green, fontWeight: '800' }}>✓</Text>
+              Paid <Text style={{ color: colors.green, fontFamily: fonts.black }}>✓</Text>
             </P>
             <Muted>
               Confirmed by {forfeit.paid_by_name ?? 'the circle'}
@@ -111,7 +111,7 @@ export default function ForfeitDetail() {
                 <Row style={{ justifyContent: 'space-between' }}>
                   <View style={{ flex: 1 }}>
                     <P>
-                      <Text style={{ fontWeight: '800' }}>{f.owed_by_name}</Text> owes: {f.description}
+                      <Text style={{ fontFamily: fonts.black }}>{f.owed_by_name}</Text> owes: {f.description}
                     </P>
                     <Muted>
                       {f.course_code} · {dayLabel(f.starts_at)}
