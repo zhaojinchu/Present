@@ -1,0 +1,49 @@
+{
+  "name": "present",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@supabase/supabase-js": "^2.116.0",
+    "base64-arraybuffer": "^1.0.2",
+    "expo": "~57.0.22",
+    "expo-camera": "~57.0.5",
+    "expo-constants": "~57.0.18",
+    "expo-file-system": "~57.0.7",
+    "expo-haptics": "~57.0.3",
+    "expo-image": "~57.0.5",
+    "expo-image-manipulator": "~57.0.17",
+    "expo-linking": "~57.0.10",
+    "expo-location": "~57.0.17",
+    "expo-notifications": "~57.0.18",
+    "expo-router": "~57.0.21",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-url-polyfill": "^4.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/node": "^22.20.2",
+    "@types/pg": "^8.23.1",
+    "@types/react": "~19.2.2",
+    "dotenv": "^17.4.2",
+    "pg": "^8.23.0",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
+    "seed": "tsx scripts/seed.mts",
+    "sql:test": "tsx scripts/sql-test.mts"
+  },
+  "private": true
+}

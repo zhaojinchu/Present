@@ -1,0 +1,51 @@
+{
+  "_comment": "Copy to schedules.json and replace with the team's real schedules. Every member must have the demo_course. days: 0=Sun .. 6=Sat. Times are America/New_York, 24h.",
+  "circle": {
+    "name": "Hack House",
+    "forfeit_text": "buys the circle boba",
+    "invite_code": "BOBA26"
+  },
+  "password": "present-demo-2026",
+  "demo_course": "15-122",
+  "past_skip_member": "sam",
+  "past_skip_paid_by": "priya",
+  "history_class_days": 10,
+  "members": [
+    {
+      "first": "alex",
+      "display_name": "Alex",
+      "classes": [
+        { "course_code": "15-122", "name": "Principles of Imperative Computation", "building_code": "GHC", "days": [1, 3, 5], "start": "09:30", "end": "10:20" },
+        { "course_code": "21-241", "name": "Matrices and Linear Transformations", "building_code": "DH", "days": [1, 3, 5], "start": "11:00", "end": "11:50" },
+        { "course_code": "76-101", "name": "Interpretation and Argument", "building_code": "BH", "days": [2, 4], "start": "14:00", "end": "15:20" }
+      ]
+    },
+    {
+      "first": "sam",
+      "display_name": "Sam",
+      "classes": [
+        { "course_code": "15-122", "name": "Principles of Imperative Computation", "building_code": "GHC", "days": [1, 3, 5], "start": "09:30", "end": "10:20" },
+        { "course_code": "15-151", "name": "Mathematical Foundations for CS", "building_code": "WEH", "days": [1, 3, 5], "start": "13:00", "end": "13:50" },
+        { "course_code": "79-104", "name": "Global Histories", "building_code": "PH", "days": [2, 4], "start": "11:00", "end": "12:20" }
+      ]
+    },
+    {
+      "first": "priya",
+      "display_name": "Priya",
+      "classes": [
+        { "course_code": "15-122", "name": "Principles of Imperative Computation", "building_code": "GHC", "days": [1, 3, 5], "start": "09:30", "end": "10:20" },
+        { "course_code": "36-200", "name": "Reasoning with Data", "building_code": "POS", "days": [2, 4], "start": "09:30", "end": "10:50" },
+        { "course_code": "85-211", "name": "Cognitive Psychology", "building_code": "BH", "days": [1, 3], "start": "15:00", "end": "16:20" }
+      ]
+    },
+    {
+      "first": "jordan",
+      "display_name": "Jordan",
+      "classes": [
+        { "course_code": "15-122", "name": "Principles of Imperative Computation", "building_code": "GHC", "days": [1, 3, 5], "start": "09:30", "end": "10:20" },
+        { "course_code": "18-100", "name": "Intro to ECE", "building_code": "HH", "days": [2, 4], "start": "10:00", "end": "11:20" },
+        { "course_code": "21-127", "name": "Concepts of Mathematics", "building_code": "WEH", "days": [1, 3, 5], "start": "12:00", "end": "12:50" }
+      ]
+    }
+  ]
+}
