@@ -7,6 +7,7 @@ import { sendFriendRequest } from '@/lib/api/social';
 import { useAppState, useRealtimeInvalidation, useSession } from '@/lib/appState';
 import { env } from '@/lib/config';
 import { prefs } from '@/lib/prefs';
+import { syncPushSubscription } from '@/lib/push';
 import { Spinner, useToast } from '@/ui';
 
 const PUBLIC = new Set(['/sign-in', '/sign-up']);
@@ -28,6 +29,11 @@ export default function RootLayout() {
     if (!userId && !isPublic && !isAddLink) navigate('/sign-in', { replace: true });
     if (userId && isPublic) navigate('/', { replace: true });
   }, [loading, userId, location.pathname, navigate]);
+
+  // A browser that already allowed notifications re-attaches its subscription to this account.
+  useEffect(() => {
+    if (userId) void syncPushSubscription();
+  }, [userId]);
 
   // Onboarding gate: no classes and not skipped -> schedule first.
   const classCount = q.data?.me.class_count ?? null;

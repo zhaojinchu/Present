@@ -258,6 +258,42 @@ stakes, invite friends; join is by code. Copy: "circle streak", "owes the circle
 with "buys everyone boba". Roll call stays but only renders when two members share a class today. Mock
 circle 2 is "Coffee crew" ☕. Deployed to production; PITCH.md updated to the picker and circle wording.
 
+**Push notifications and QR scanner (12 Sep 2026 ~13:30).** Web Push is live. Backend:
+`20260913000012_push.sql` adds `push_queue` (RLS, no policies: clients never read it; `tag` unique so
+nothing is announced twice) and the triggers that fill it: friend request (to the other person),
+accepted request (to the requester), a miss (to the misser, url /explain/<miss>), a comment on your post
+or miss, and `enqueue_open_windows()` (class window opened in the last 3 minutes, url /post/<occ>).
+`000013_push_supabase_only.sql`: `pg_net`, Vault-backed `push_secret()` / `push_public_key()`
+(authenticated) / `push_secrets()` (service role), `push_kick()` posts queue ids to the send-push
+function with the `x-push-secret` header, `push_queue_kick` trigger (immediate) plus crons
+`present-push-open-windows` and `present-push-drain` every minute (retry unsent, 3 attempts).
+`000014_push_test.sql`: `push_test()` sends yourself a test notification (called right after enabling).
+Secrets live in Supabase Vault, written by `npm run push:setup` (`scripts/push-setup.mts`: VAPID keys,
+hook secret, function URL; idempotent). Edge function `supabase/functions/send-push` (verify_jwt off,
+secret header is the auth; `npm:web-push`; drops 404/410 subscriptions; marks rows sent). Pipeline was
+tested end to end on hosted (trigger → pg_net → function → row sent in 6 s); real delivery to a phone is
+not yet confirmed. Client: `web/src/lib/push.ts` (`pushStatus`, `enablePush` from a tap, `disablePush`,
+`syncPushSubscription` on sign-in from RootLayout), `components/today/NotifyCard.tsx` (one-time card on
+Today; on iOS Safari it says to install first), Settings "Notifications" row (toggle + status), `sw.ts`
+already had the push and click handlers. iOS: Home Screen app only, 16.4+. Test: `scripts/sql-test-push.mts`
+(2 cases, in `npm run sql:test`). QR scanner: `routes/ScanQr.tsx` at /friends/scan (environment camera,
+BarcodeDetector when present else `jsqr`, accepts any host's /add/<username> link, an @handle or a bare
+username, then navigates to /add/<username>); buttons in the Friends header (scan icon next to share) and on
+the Share screen. Circles: present-bb renamed the groups UI to Circles (routes /circles/...), removed the
+class-based suggestions; the backend still calls them groups and get_state keeps `shared_courses` (unused).
+
+**Pull-to-refresh and haptics (12 Sep 2026 ~14:00).** `web/src/lib/haptics.ts` exports
+`haptic('light' | 'medium' | 'success' | 'error')`: `navigator.vibrate` where it exists (Android), else the
+iOS trick of clicking a hidden `<input type="checkbox" switch>` (plays the system switch haptic on iOS
+17.4+ when called inside a user gesture); safe anywhere, silent where unsupported. Used on: tab taps,
+pull-to-refresh arm (light) and fire (medium), the shutter (medium), post success (success), reaction
+toggle (light), friend request/accept (success), "Announce it" (success). Pull-to-refresh lives in
+`AppShell.tsx` `Main` (touch listeners on `.scroll-main`, content translates with the pull, spinner above;
+arms at 64 px, holds at 56 px while `invalidate()` runs, min 500 ms; `refresh={false}` opts a screen out).
+`.scroll-main` is now `overscroll-behavior: none` so the container does not rubber band on top of it.
+Today: "Show N earlier" / "Show N more" toggle back to "Hide earlier" / "Show less". The circle strip in
+the feed and the roll-call collapse were handed to present-bb with the user's wording.
+
 **File ownership for v2** (claim a line here before editing): `web/src/lib/**`, `web/src/routes/**`,
 `web/src/app/**`, `supabase/**`, `scripts/**` = this (logic) session. `web/src/ui/**`, `web/src/styles/**` =
 design session if it continues; otherwise this session. Shared: `web/src/lib/types.ts`, `KNOWLEDGE.md`.

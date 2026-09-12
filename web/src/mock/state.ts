@@ -145,6 +145,7 @@ export function buildMockState(base = Date.now()): AppState {
     occ(base, { id: 'occ-priya-122', user: PRIYA, course: '15-122', name: 'Principles of Imperative Computation', location: 'GHC 4401', startOffsetMin: -3, status: 'posted', postedOffsetMin: -1, pinned: true }),
     occ(base, { id: 'occ-jordan-122', user: JORDAN, course: '15-122', name: 'Principles of Imperative Computation', location: 'GHC 4401', startOffsetMin: -3, status: 'posted', postedOffsetMin: -2 }),
     occ(base, { id: 'occ-jordan-127', user: JORDAN, course: '21-127', name: 'Concepts of Mathematics', location: 'WEH 5403', startOffsetMin: 150 }),
+    occ(base, { id: 'occ-priya-241', user: PRIYA, course: '21-241', name: 'Matrices and Linear Transformations', location: 'DH 2210', startOffsetMin: 125 }),
   ];
 
   const feed: FeedEvent[] = [

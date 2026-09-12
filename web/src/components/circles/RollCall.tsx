@@ -1,41 +1,43 @@
 // Roll call: for every class session two or more circle members share today, who is present, late,
-// missing or still to come. Fills in live as people present. `compact` shows only the session that
-// matters right now (open, then the next one).
-import { IoCheckmark, IoClose } from 'react-icons/io5';
+// missing or still to come. Fills in live as people present. Shows the session that matters now and
+// folds the rest behind "Show N more" (no inner scroll: nested scrolling fights the page on iOS).
+import { useState } from 'react';
+import { IoCheckmark, IoChevronDown, IoChevronUp, IoClose } from 'react-icons/io5';
 import { ProfileLink } from '@/components/ProfileLink';
-import { phaseOf, type Phase } from '@/lib/phase';
-import { type Group, rollCall, type RollCallSession } from '@/lib/groups';
+import { phaseOf } from '@/lib/phase';
+import { type Group, presentCount, rankRollCall, rollCall, type RollCallSession, sessionPhase } from '@/lib/groups';
 import { fmtCountdown, fmtTime } from '@/lib/time';
 import type { Occurrence } from '@/lib/types';
-import { Avatar, Badge, cx, Icon, Txt } from '@/ui';
+import { Avatar, Badge, Button, cx, Icon, Txt } from '@/ui';
 
-const ORDER: Phase[] = ['open', 'late', 'upcoming', 'closed', 'posted', 'posted_late', 'missed', 'excused'];
-
-export function RollCall({ group, today, nowMs, compact, className }: { group: Group; today: Occurrence[]; nowMs: number; compact?: boolean; className?: string }) {
-  let sessions = rollCall(today, group);
+export function RollCall({ group, today, nowMs, initial = 1, className }: { group: Group; today: Occurrence[]; nowMs: number; /** Sessions shown before "Show more". */ initial?: number; className?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const sessions = rankRollCall(rollCall(today, group), nowMs);
   if (sessions.length === 0) return null;
-  if (compact) {
-    const ranked = [...sessions].sort((a, b) => ORDER.indexOf(sessionPhase(a, nowMs)) - ORDER.indexOf(sessionPhase(b, nowMs)));
-    sessions = ranked.slice(0, 1);
-  }
+  const hidden = sessions.length - initial;
+  const shown = expanded || hidden <= 0 ? sessions : sessions.slice(0, initial);
   return (
     <div className={cx('flex flex-col gap-3', className)}>
-      {sessions.map((s) => (
+      {shown.map((s) => (
         <Session key={s.key} session={s} nowMs={nowMs} />
       ))}
+      {hidden > 0 ? (
+        <Button
+          title={expanded ? 'Show less' : `Show ${hidden} more ${hidden === 1 ? 'class' : 'classes'}`}
+          variant="tertiary"
+          size="sm"
+          icon={expanded ? IoChevronUp : IoChevronDown}
+          className="self-center"
+          onClick={() => setExpanded((v) => !v)}
+        />
+      ) : null}
     </div>
   );
 }
 
-/** The session's own phase: the first member's occurrence carries the shared timestamps. */
-function sessionPhase(s: RollCallSession, nowMs: number): Phase {
-  const probe = { ...s.occurrences[0], status: 'pending' as const, late: false, posted_at: null };
-  return phaseOf(probe, nowMs);
-}
-
 function Session({ session: s, nowMs }: { session: RollCallSession; nowMs: number }) {
   const phase = sessionPhase(s, nowMs);
-  const present = s.occurrences.filter((o) => o.status === 'posted').length;
+  const present = presentCount(s);
   const total = s.occurrences.length;
   const onTime = Date.parse(s.on_time_until);
   const deadline = Date.parse(s.deadline);

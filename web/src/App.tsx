@@ -11,6 +11,7 @@ import Explain from './routes/Explain';
 import Feed from './routes/Feed';
 import Friends from './routes/Friends';
 import FriendsShare from './routes/FriendsShare';
+import ScanQr from './routes/ScanQr';
 import Post from './routes/Post';
 import RootLayout from './routes/RootLayout';
 import Schedule from './routes/Schedule';
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
       { path: 'explain/:missId', element: <Explain /> },
       { path: 'friends', element: <Friends /> },
       { path: 'friends/share', element: <FriendsShare /> },
+      { path: 'friends/scan', element: <ScanQr /> },
       { path: 'circles', element: <Circles /> },
       { path: 'circles/new', element: <CircleNew /> },
       { path: 'circles/join', element: <CircleJoin /> },

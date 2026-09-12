@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import { IoAdd } from 'react-icons/io5';
 import { toggleReaction } from '@/lib/api/social';
+import { haptic } from '@/lib/haptics';
 import { useInvalidateState } from '@/lib/appState';
 import { REACTION_EMOJI } from '@/lib/config';
 import type { Reaction } from '@/lib/types';
@@ -28,6 +29,7 @@ export function ReactionBar({ eventId, reactions, meId, className }: { eventId: 
   const onTap = async (emoji: string, mine: boolean) => {
     setOverride((o) => ({ ...o, [emoji]: !mine }));
     try {
+      haptic('light');
       await toggleReaction(eventId, emoji);
       await invalidate();
     } catch {

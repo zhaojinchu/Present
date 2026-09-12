@@ -102,7 +102,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overscroll-behavior: none; /* no rubber band: pull-to-refresh lives here instead */
     scrollbar-width: none;
   }
   .scroll-main::-webkit-scrollbar {

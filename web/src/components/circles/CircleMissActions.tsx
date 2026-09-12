@@ -6,6 +6,7 @@ import { IoCheckmark, IoEyeOutline, IoThumbsDown, IoThumbsDownOutline, IoThumbsU
 import { useNavigate } from 'react-router';
 import { markForfeitPaid, voteMiss, vouchMiss } from '@/lib/api/groups';
 import { useInvalidateState } from '@/lib/appState';
+import { haptic } from '@/lib/haptics';
 import { groupLabel, groupsSharedWith, missInGroup, type Group } from '@/lib/groups';
 import { errorMessage } from '@/lib/supabase';
 import { Badge, Button, cx, Icon, Txt, useToast } from '@/ui';
@@ -73,11 +74,14 @@ function Actions({ missId, actorId, group: g, meId, className }: { missId: strin
 
   const run = async (key: string, fn: () => Promise<unknown>, done?: string) => {
     setBusy(key);
+    haptic('light');
     try {
       await fn();
       await invalidate();
+      haptic('success');
       if (done) toast(done);
     } catch (e) {
+      haptic('error');
       toast(errorMessage(e));
     } finally {
       setBusy(null);

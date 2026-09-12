@@ -1,6 +1,7 @@
 // /friends/share — a QR code and a link that adds you.
 import { QRCodeSVG } from 'qrcode.react';
-import { IoCopyOutline, IoShareOutline } from 'react-icons/io5';
+import { IoCopyOutline, IoScanOutline, IoShareOutline } from 'react-icons/io5';
+import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { useMe } from '@/lib/appState';
 import { shareUrlFor } from '@/lib/config';
@@ -10,6 +11,7 @@ import { BackButton } from './_Stub';
 export default function FriendsShare() {
   const me = useMe();
   const toast = useToast();
+  const navigate = useNavigate();
   const url = me ? shareUrlFor(me.username) : '';
 
   const copy = async () => {
@@ -52,6 +54,7 @@ export default function FriendsShare() {
         <div className="flex flex-col gap-2 mt-8">
           <Button title="Share link" size="lg" icon={IoShareOutline} onClick={share} />
           <Button title="Copy link" variant="secondary" size="lg" icon={IoCopyOutline} onClick={copy} />
+          <Button title="Scan a friend's code" variant="tertiary" size="lg" icon={IoScanOutline} onClick={() => navigate('/friends/scan')} />
         </div>
       </Main>
     </Screen>

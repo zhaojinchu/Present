@@ -1,6 +1,6 @@
 // /friends — search, requests, and the friends list ordered by streak (the leaderboard).
 import { useEffect, useState } from 'react';
-import { IoQrCodeOutline, IoSearch } from 'react-icons/io5';
+import { IoQrCodeOutline, IoScanOutline, IoSearch } from 'react-icons/io5';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { FriendRow } from '@/components/friends/FriendRow';
@@ -46,7 +46,12 @@ export default function Friends() {
       <Header
         title={onboarding ? 'Add friends' : 'Friends'}
         left={onboarding ? undefined : <BackButton />}
-        right={<IconButton icon={IoQrCodeOutline} label="Share my link" tone="plain" onClick={() => navigate('/friends/share')} />}
+        right={
+          <span className="flex items-center">
+            <IconButton icon={IoScanOutline} label="Scan a friend's code" tone="plain" onClick={() => navigate('/friends/scan')} />
+            <IconButton icon={IoQrCodeOutline} label="Share my link" tone="plain" onClick={() => navigate('/friends/share')} />
+          </span>
+        }
       />
       <Main padded={false}>
         <div className="px-4 pt-1 pb-3">

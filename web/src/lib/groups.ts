@@ -3,6 +3,7 @@
 // screens use (roll call, standings, forfeit and vote lookups). The backend owns the numbers; nothing
 // here reaches Supabase.
 import { z } from 'zod';
+import { phaseOf, type Phase } from './phase';
 import type { FeedEvent, Occurrence } from './types';
 import { sameSession } from './presence';
 
@@ -146,6 +147,24 @@ export function rollCall(today: Occurrence[], g: Group): RollCallSession[] {
       });
   }
   return [...sessions.values()].filter((s) => s.occurrences.length >= 2).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+}
+
+/** Which sessions matter most right now: open, late, upcoming, then the ones already decided. */
+const SESSION_ORDER: Phase[] = ['open', 'late', 'upcoming', 'closed', 'posted', 'posted_late', 'missed', 'excused'];
+
+/** The session's own phase, from its shared timestamps rather than any one member's status. */
+export function sessionPhase(s: RollCallSession, nowMs: number): Phase {
+  return phaseOf({ ...s.occurrences[0], status: 'pending', late: false, posted_at: null }, nowMs);
+}
+
+/** Roll-call sessions sorted by how much they matter right now (see SESSION_ORDER), then by time. */
+export function rankRollCall(sessions: RollCallSession[], nowMs: number): RollCallSession[] {
+  return [...sessions].sort((a, b) => SESSION_ORDER.indexOf(sessionPhase(a, nowMs)) - SESSION_ORDER.indexOf(sessionPhase(b, nowMs)) || Date.parse(a.starts_at) - Date.parse(b.starts_at));
+}
+
+/** Members who have presented for a session (on time or late). */
+export function presentCount(s: RollCallSession): number {
+  return s.occurrences.filter((o) => o.status === 'posted').length;
 }
 
 /** The roll-call session, if any, that matches an occurrence (for a group's compact strip). */

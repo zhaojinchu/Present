@@ -1,6 +1,7 @@
 // The posting state machine: camera on a tap, front shot, automatic back shot, retakes, caption,
 // upload, create_post. Pure browser APIs (getUserMedia + canvas), so it runs anywhere with HTTPS.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { haptic } from './haptics';
 import { createPost, photoPath, uploadPhoto, type CreatePostResult } from './api/post';
 import { getPosition, type Fix } from './location';
 import { errorMessage } from './supabase';
@@ -158,6 +159,7 @@ export function usePost(occurrence: Occurrence | null, userId: string | null) {
     const v = videoRef.current;
     if (!v || stage !== 'front') return;
     try {
+      haptic('medium');
       const blob = await captureFrame(v, true); // mirrored, matching the preview
       setFront({ blob, url: URL.createObjectURL(blob) });
       setStage('flipping');
@@ -222,6 +224,7 @@ export function usePost(occurrence: Occurrence | null, userId: string | null) {
         retakeCount: retakes,
         position: fixRef.current,
       });
+      haptic('success');
       setResult(r);
       setStage('success');
     } catch (e) {

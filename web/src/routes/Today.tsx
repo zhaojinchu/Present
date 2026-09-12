@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { Header, Main, Screen } from '@/app/AppShell';
 import { LiveRow } from '@/components/feed/LiveRow';
 import { ClassRow } from '@/components/today/ClassRow';
+import { NotifyCard } from '@/components/today/NotifyCard';
 import { PromptCard } from '@/components/today/PromptCard';
 import { useAppState, useMe, useToday } from '@/lib/appState';
 import { useNow } from '@/lib/clock';
@@ -88,6 +89,8 @@ export default function Today() {
           </div>
         ) : null}
 
+        <NotifyCard className="mt-3" />
+
         {!loading && mine.length === 0 ? (
           <EmptyState
             icon={IoCalendarOutline}
@@ -107,16 +110,16 @@ export default function Today() {
                 {mine.length} today
               </Txt>
             </div>
-            {rows.earlier.length > 0 && !showEarlier ? (
-              <Button title={`Show ${rows.earlier.length} earlier`} variant="tertiary" size="sm" className="mb-2 self-start" onClick={() => setShowEarlier(true)} />
+            {rows.earlier.length > 0 ? (
+              <Button title={showEarlier ? 'Hide earlier' : `Show ${rows.earlier.length} earlier`} variant="tertiary" size="sm" className="mb-2 self-start" onClick={() => setShowEarlier((v) => !v)} />
             ) : null}
             <Group>
               {showEarlier ? rows.earlier.map(rowFor) : null}
               {rows.shown.map(rowFor)}
               {showMore ? rows.more.map(rowFor) : null}
             </Group>
-            {rows.more.length > 0 && !showMore ? (
-              <Button title={`Show ${rows.more.length} more`} variant="tertiary" size="sm" className="mt-2 self-start" onClick={() => setShowMore(true)} />
+            {rows.more.length > 0 ? (
+              <Button title={showMore ? 'Show less' : `Show ${rows.more.length} more`} variant="tertiary" size="sm" className="mt-2 self-start" onClick={() => setShowMore((v) => !v)} />
             ) : null}
           </>
         ) : null}

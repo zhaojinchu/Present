@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { acceptFriendRequest, removeFriend, sendFriendRequest } from '@/lib/api/social';
 import { useInvalidateState } from '@/lib/appState';
+import { haptic } from '@/lib/haptics';
 import type { Relation } from '@/lib/types';
 import { Avatar, Button, ListRow, StreakChip, useToast } from '@/ui';
 
@@ -36,6 +37,7 @@ export function FriendRow({
     setBusy(true);
     try {
       await fn();
+      haptic('success');
       setLocal(next);
       if (msg) toast(msg);
       await invalidate();

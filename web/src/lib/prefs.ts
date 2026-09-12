@@ -5,6 +5,7 @@ type Prefs = {
   pending_add?: string; // username from an /add link opened while signed out
   skip_schedule?: boolean; // onboarding: "skip for now"
   install_hint_dismissed?: boolean;
+  notify_dismissed?: boolean; // the Today notifications card
 };
 
 function read(): Prefs {

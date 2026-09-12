@@ -5,6 +5,7 @@ import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { useRef, useState } from 'react';
 import { IoLocationOutline } from 'react-icons/io5';
 import { useNavigate } from 'react-router';
+import { haptic } from '@/lib/haptics';
 import { commentsFor, photoExpired, reactionsFor } from '@/lib/feed';
 import { listNames, type PostGroup } from '@/lib/presence';
 import { fmtTime, relative } from '@/lib/time';
@@ -40,7 +41,10 @@ export function TogetherDeck({
   const active = posts[index] ?? posts[0];
   const names = posts.map((e) => e.payload.display_name ?? 'Someone');
 
-  const paginate = (dir: 1 | -1) => setPage(([i]) => [(i + dir + count) % count, dir]);
+  const paginate = (dir: 1 | -1) => {
+    haptic('light');
+    setPage(([i]) => [(i + dir + count) % count, dir]);
+  };
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (count < 2) return;
     const width = deckRef.current?.getBoundingClientRect().width ?? 320;

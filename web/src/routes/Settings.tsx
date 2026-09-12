@@ -8,6 +8,7 @@ import { updateProfile, usernameAvailable } from '@/lib/api/social';
 import { useInvalidateState, useMe } from '@/lib/appState';
 import { env } from '@/lib/config';
 import { prefs } from '@/lib/prefs';
+import { disablePush, enablePush, pushLabel, pushStatus, type PushStatus } from '@/lib/push';
 import { errorMessage, supabase } from '@/lib/supabase';
 import { Avatar, Button, ErrorText, Field, Group, Input, ListRow, Txt, useToast } from '@/ui';
 import { BackButton } from './_Stub';
@@ -17,6 +18,24 @@ export default function Settings() {
   const navigate = useNavigate();
   const invalidate = useInvalidateState();
   const toast = useToast();
+  const [push, setPush] = useState<PushStatus>('unsupported');
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    void pushStatus().then(setPush);
+  }, []);
+  const togglePush = async () => {
+    if (pushBusy || push === 'unsupported' || push === 'install' || push === 'denied') return;
+    setPushBusy(true);
+    try {
+      const s = push === 'on' ? await disablePush() : await enablePush();
+      setPush(s);
+      toast(s === 'on' ? 'Notifications on' : s === 'denied' ? 'Blocked in iPhone Settings' : 'Notifications off');
+    } catch (e) {
+      toast(errorMessage(e));
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const [name, setName] = useState(me?.display_name ?? '');
   const [username, setUsername] = useState(me?.username ?? '');
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -120,6 +139,16 @@ export default function Settings() {
           <Button type="submit" title="Save" size="lg" loading={busy} disabled={!dirty || !!usernameError} />
           <ErrorText>{err}</ErrorText>
         </form>
+
+        <Txt variant="label" tone="tertiary" className="mt-8 mb-2">
+          Notifications
+        </Txt>
+        <Group>
+          <ListRow title={push === 'on' ? 'Notifications are on' : 'Turn on notifications'} subtitle={pushLabel[push]} onClick={push === 'on' || push === 'off' || push === 'prompt' ? togglePush : undefined} chevron={false} trailing={push === 'on' ? <Txt variant="subhead" tone="secondary">Turn off</Txt> : undefined} />
+        </Group>
+        <Txt variant="footnote" tone="tertiary" className="mt-2">
+          A buzz when a class opens, when you miss one, for friend requests, and for comments on your posts.
+        </Txt>
 
         <Txt variant="label" tone="tertiary" className="mt-8 mb-2">
           About

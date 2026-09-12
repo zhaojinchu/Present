@@ -6,6 +6,7 @@ import { PostMedia } from '@/components/feed/PostMedia';
 import { excuseOccurrence } from '@/lib/api/social';
 import { useInvalidateState } from '@/lib/appState';
 import { EXPLANATION_MAX } from '@/lib/config';
+import { haptic } from '@/lib/haptics';
 import { minutesLate, type Phase } from '@/lib/phase';
 import { errorMessage } from '@/lib/supabase';
 import { fmtCountdown, fmtTime } from '@/lib/time';
@@ -50,6 +51,7 @@ export function PromptCard({
     setErr(null);
     try {
       await excuseOccurrence(o.id, reason.trim());
+      haptic('success');
       await invalidate();
       setExcusing(false);
       setReason('');

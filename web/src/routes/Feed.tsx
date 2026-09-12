@@ -6,7 +6,6 @@ import { Header, Main, Screen } from '@/app/AppShell';
 import { FeedList } from '@/components/feed/FeedList';
 import { CircleCard } from '@/components/circles/CircleCard';
 import { CirclePicker } from '@/components/circles/CirclePicker';
-import { RollCall } from '@/components/circles/RollCall';
 import { InstallHint } from '@/components/InstallHint';
 import { LiveRow } from '@/components/feed/LiveRow';
 import { PromptCard } from '@/components/today/PromptCard';
@@ -68,13 +67,7 @@ export default function Feed() {
             <PromptCard occurrence={focus.occurrence} phase={focus.phase} nowMs={now} friendsPosted={friendsPostedForFocus} compact />
           </div>
         ) : null}
-        {group ? (
-          <div className="mb-2">
-            <CircleCard group={group} compact />
-            <RollCall group={group} today={q.data?.today_occurrences ?? []} nowMs={now} compact className="px-4 pt-2" />
-          </div>
-        ) : null}
-        <LiveRow inClass={inClass} />
+        {group ? <CircleCard group={group} compact today={q.data?.today_occurrences ?? []} nowMs={now} /> : <LiveRow inClass={inClass} />}
         {q.error && events.length === 0 ? (
           <Txt variant="footnote" tone="danger" className="px-4 pt-4">
             Couldn't reach the server. Retrying.

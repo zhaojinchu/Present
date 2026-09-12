@@ -5,6 +5,7 @@ import { IoCheckmark } from 'react-icons/io5';
 import { ProfileLink } from '@/components/ProfileLink';
 import { markForfeitPaid } from '@/lib/api/groups';
 import { useInvalidateState } from '@/lib/appState';
+import { haptic } from '@/lib/haptics';
 import { type Group, type GroupForfeit } from '@/lib/groups';
 import { errorMessage } from '@/lib/supabase';
 import { dayLabel } from '@/lib/time';
@@ -53,11 +54,14 @@ function ForfeitRow({ forfeit: f, group: g, meId, nowMs, first }: { forfeit: Gro
   const mine = f.user_id === meId;
   const pay = async () => {
     setBusy(true);
+    haptic('light');
     try {
       await markForfeitPaid(f.id);
       await invalidate();
+      haptic('success');
       toast(`${who?.display_name.split(' ')[0] ?? 'They'} paid up`);
     } catch (e) {
+      haptic('error');
       toast(errorMessage(e));
     } finally {
       setBusy(false);

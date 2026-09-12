@@ -45,6 +45,8 @@ const expected = [
   'my_group_ids', 'group_mates', 'is_group_member', 'gen_invite_code', 'miss_group_excused', 'void_forfeit', 'on_miss_group_effects',
   'group_days', 'group_streak', 'group_best_streak', 'group_json', 'group_state', 'check_miss_in_group',
   'create_group', 'join_group', 'add_to_group', 'leave_group', 'update_group', 'mark_forfeit_paid', 'vote_miss', 'vouch_miss',
+  'push_enqueue', 'on_friendship_push', 'on_miss_push', 'on_comment_push', 'enqueue_open_windows',
+  'push_secret', 'push_public_key', 'push_secrets', 'push_kick', 'on_push_queue_insert', 'push_drain', 'push_test',
   'dev_scope', 'dev_reset_demo', 'dev_start_class_now', 'dev_end_on_time_now', 'dev_end_window_now', 'dev_pin_here',
   'dev_replay_post', 'dev_replay_explanation',
 ];
@@ -57,7 +59,7 @@ console.log('\nrow level security');
 const tables = await rows<{ relname: string; relrowsecurity: boolean }>(
   `select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' order by relname`,
 );
-const expectedTables = ['profiles', 'friendships', 'classes', 'class_occurrences', 'posts', 'misses', 'feed_events', 'reactions', 'comments', 'push_subscriptions', 'groups', 'group_members', 'group_forfeits', 'miss_votes', 'miss_vouches'];
+const expectedTables = ['profiles', 'friendships', 'classes', 'class_occurrences', 'posts', 'misses', 'feed_events', 'reactions', 'comments', 'push_subscriptions', 'groups', 'group_members', 'group_forfeits', 'miss_votes', 'miss_vouches', 'push_queue'];
 const names = new Set(tables.map((t) => t.relname));
 const missingTables = expectedTables.filter((t) => !names.has(t));
 const noRls = tables.filter((t) => !t.relrowsecurity).map((t) => t.relname);
@@ -86,7 +88,7 @@ if (jobs[0]?.__error) report(false, 'pg_cron', jobs[0].__error);
 else {
   for (const j of jobs) console.log(`       ${j.jobname.padEnd(28)} ${j.schedule.padEnd(12)} ${j.active ? 'active' : 'INACTIVE'}`);
   const present = jobs.filter((j) => j.jobname.startsWith('present-')).map((j) => j.jobname);
-  report(['present-detect-misses', 'present-ensure-occurrences', 'present-expire-photos'].every((j) => present.includes(j)) && present.length === 3, '3 present-* cron jobs');
+  report(['present-detect-misses', 'present-ensure-occurrences', 'present-expire-photos', 'present-push-open-windows', 'present-push-drain'].every((j) => present.includes(j)) && present.length === 5, '5 present-* cron jobs');
 }
 
 console.log('\nauth');
